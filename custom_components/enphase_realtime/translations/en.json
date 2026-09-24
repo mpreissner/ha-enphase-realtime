@@ -77,5 +77,13 @@
       "title": "Envoy phase layout changed",
       "description": "The Envoy's meters now report a {detected} layout, but this entry was set up as {stored}. Remove and re-add the integration so the per-phase entities match the new layout."
     }
+  },
+  "exceptions": {
+    "write_failed": {
+      "message": "Enphase didn't accept the change: {error}"
+    },
+    "write_auth_failed": {
+      "message": "Enphase refused the saved login, so the change wasn't sent. Log in again from the integration's reauthentication prompt."
+    }
   }
 }

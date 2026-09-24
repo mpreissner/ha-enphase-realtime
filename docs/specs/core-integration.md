@@ -157,10 +157,13 @@ Region is used for:
 
 - **Cloud behaviour that varies by market.** The charge-from-grid disclaimer
   (`"disclaimer-type":"itc"`) is the US Investment Tax Credit, and other markets presumably use
-  another type or none. `siteSettings` also has `showChargeFromGrid` and `restrictCfg`. Until
-  spike S8 is settled, the charge-from-grid switch is created only when `showChargeFromGrid` is
-  true and `restrictCfg` is false, and the ITC disclaimer is sent only when `countryCode` is
-  `US`.
+  another type or none. `siteSettings` also has `showChargeFromGrid` and `restrictCfg`, and
+  `batterySettings` has `cfgControl.show`. Until spike S8 is settled, the charge-from-grid switch
+  is created only when `restrictCfg` is false and either `showChargeFromGrid` or
+  `cfgControl.show` is true. (The reference site, where charging from the grid works, has
+  `showChargeFromGrid` false and `cfgControl.show` true, so `showChargeFromGrid` alone would hide
+  it.) The ITC disclaimer is sent only when the country is `US`: the one confirmed in the options,
+  or `countryCode` if none was.
 - **Times of day.** `chargeBeginTime` and `chargeEndTime` are minutes after local midnight in the
   site's time zone, not HA's. They're shown using the site time zone.
 - **Hosts.** `enlighten.enphaseenergy.com` and `entrez.enphaseenergy.com` are assumed to serve
@@ -399,8 +402,9 @@ Charge-from-grid schedule (`chargeFromGridScheduleEnabled`, begin and end times)
 diagnostic attributes only in v1. Writing them comes later. The times are minutes after local
 midnight in the site's time zone (3.3).
 
-**Regional gating.** The charge-from-grid switch exists only where the site's `siteSettings`
-allow it and, for the disclaimer, only as described in 3.3. The ITC disclaimer body above is
+**Regional gating.** The charge-from-grid switch exists only where the site's settings allow it
+and, for the disclaimer, only as described in 3.3. The flags are read once, when the cloud is
+first reached at setup; if it can't be reached then, the switch appears after the next reload. The ITC disclaimer body above is
 verified for the US only. The reference site shows the cloud's `hideChargeFromGrid: true` while
 in `backup_only` even though `cfgControl.show` is true, so visibility must not rely on
 `hideChargeFromGrid` alone.

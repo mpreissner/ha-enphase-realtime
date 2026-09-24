@@ -84,6 +84,12 @@ class FakeEnphase:
     site_ids: list[int] = field(default_factory=lambda: [SITE])
     envoy_errors: dict[str, EnvoyError] = field(default_factory=dict)
     battery_settings_error: EnlightenError | None = None
+    # Fields merged over a fixture, so a test can move a local value (e.g. after a write).
+    envoy_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
+    site_settings_overrides: dict[str, Any] = field(default_factory=dict)
+    # Cloud writes as (method, path, body), and an error to raise instead of accepting them.
+    writes: list[tuple[str, str, Any]] = field(default_factory=list)
+    write_error: EnlightenError | None = None
     stream_available: bool = True
     token: str = field(default_factory=owner_token)
     stream_frames: list[StreamFrame] = field(default_factory=list)
@@ -108,6 +114,8 @@ class FakeEnphase:
         if path not in ENVOY_FIXTURES:
             raise EnvoyConnectionError(f"{path}: HTTP 404")
         payload = load_json(ENVOY_FIXTURES[path])
+        if path in self.envoy_overrides:
+            payload.update(self.envoy_overrides[path])
         client.last_payloads[path] = payload
         return payload
 
@@ -128,11 +136,22 @@ class FakeEnphase:
         cloud.user_id = USER_ID
         cloud.system_id = self.system_id
 
-    async def request(self, cloud: EnlightenSession, method: str, path: str, **_: Any) -> Any:
+    async def request(
+        self, cloud: EnlightenSession, method: str, path: str, json: Any = None, **_: Any
+    ) -> Any:
         if path.endswith("/search_sites.json"):
             return {"sites": [{"id": i, "title": f"Site {i}"} for i in self.site_ids]}
         if "/siteSettings/" in path:
-            return load_json("cloud_site_settings.json")
+            payload = load_json("cloud_site_settings.json")
+            payload["data"].update(self.site_settings_overrides)
+            return payload
+        if method != "GET" and "/batterySettings/" in path:
+            if self.write_error is not None:
+                raise self.write_error
+            self.writes.append((method, path, json))
+            if "/acceptDisclaimer/" in path:
+                return load_json("cloud_accept_disclaimer.json")
+            return load_json("cloud_put_response.json")
         if "/batterySettings/" in path:
             if self.battery_settings_error is not None:
                 raise self.battery_settings_error
@@ -159,6 +178,7 @@ def fake() -> Iterator[FakeEnphase]:
         patch.object(EnvoyClient, "stream_frames", _bind(fake.stream)),
         patch.object(EnlightenSession, "login", _bind(fake.login)),
         patch.object(EnlightenSession, "request", _bind(fake.request)),
+        patch.object(EnlightenSession, "cookie", lambda self, name: "fake-xsrf"),
         patch(
             "custom_components.enphase_realtime.credentials.fetch_owner_token",
             fake.fetch_owner_token,

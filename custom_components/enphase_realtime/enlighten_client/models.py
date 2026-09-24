@@ -63,10 +63,6 @@ class SiteSettings:
     restrict_cfg: bool
 
     @property
-    def charge_from_grid_available(self) -> bool:
-        return self.show_charge_from_grid and not self.restrict_cfg
-
-    @property
     def needs_itc_disclaimer(self) -> bool:
         """The ITC disclaimer is the US Investment Tax Credit; other markets are unknown (S8)."""
         return self.country_code == "US"
@@ -105,6 +101,9 @@ class BatterySettings:
     charge_end_time: int | None
     accepted_itc_disclaimer: str | None
     requested_config: dict[str, Any] = field(default_factory=dict)
+    # `cfgControl.show`: whether the app offers charge from grid. Unlike `hideChargeFromGrid`, it
+    # stays true in `backup_only` (spec 3.3).
+    charge_from_grid_offered: bool = False
 
     @property
     def pending_gateways(self) -> list[Any]:
@@ -133,7 +132,17 @@ class BatterySettings:
                 charge_end_time=data.get("chargeEndTime"),
                 accepted_itc_disclaimer=data.get("acceptedItcDisclaimer"),
                 requested_config=dict(data.get("requestedConfig") or {}),
+                charge_from_grid_offered=bool((data.get("cfgControl") or {}).get("show")),
             )
+
+
+def charge_from_grid_available(site: SiteSettings, battery: BatterySettings | None) -> bool:
+    """Whether to create the charge-from-grid switch (spec 3.3). `restrictCfg` rules it out.
+    Otherwise either flag will do: the reference site, where charging from the grid works, has
+    `showChargeFromGrid` false but `cfgControl.show` true."""
+    if site.restrict_cfg:
+        return False
+    return site.show_charge_from_grid or (battery is not None and battery.charge_from_grid_offered)
 
 
 @dataclass(frozen=True, slots=True)
