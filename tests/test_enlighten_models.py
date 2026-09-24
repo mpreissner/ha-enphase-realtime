@@ -9,6 +9,7 @@ from enlighten_client.models import (
     GridControlCheck,
     Site,
     SiteSettings,
+    charge_from_grid_available,
     parse_search_sites,
 )
 
@@ -27,14 +28,40 @@ def test_site_settings_reference() -> None:
     assert settings.needs_itc_disclaimer
 
 
+def test_charge_from_grid_offered_on_reference_site() -> None:
+    """The reference site charges from the grid with `showChargeFromGrid` false; `cfgControl`
+    is what says so."""
+    site = SiteSettings.from_payload(load_json("cloud_site_settings.json"))
+    battery = BatterySettings.from_payload(load_json("cloud_battery_settings.json"))
+    assert not site.show_charge_from_grid
+    assert battery.charge_from_grid_offered
+    assert charge_from_grid_available(site, battery)
+
+
 @pytest.mark.parametrize(
-    ("show", "restrict", "available"),
-    [(True, False, True), (True, True, False), (False, False, False)],
+    ("show", "cfg_show", "restrict", "available"),
+    [
+        (True, False, False, True),
+        (False, True, False, True),
+        (False, False, False, False),
+        (True, True, True, False),
+    ],
 )
-def test_charge_from_grid_gating(show: bool, restrict: bool, available: bool) -> None:
-    payload = load_json("cloud_site_settings.json")
-    payload["data"].update(showChargeFromGrid=show, restrictCfg=restrict)
-    assert SiteSettings.from_payload(payload).charge_from_grid_available is available
+def test_charge_from_grid_gating(
+    show: bool, cfg_show: bool, restrict: bool, available: bool
+) -> None:
+    site_payload = load_json("cloud_site_settings.json")
+    site_payload["data"].update(showChargeFromGrid=show, restrictCfg=restrict)
+    battery_payload = load_json("cloud_battery_settings.json")
+    battery_payload["data"]["cfgControl"]["show"] = cfg_show
+    site = SiteSettings.from_payload(site_payload)
+    battery = BatterySettings.from_payload(battery_payload)
+    assert charge_from_grid_available(site, battery) is available
+
+
+def test_charge_from_grid_needs_battery_settings_without_site_flag() -> None:
+    site = SiteSettings.from_payload(load_json("cloud_site_settings.json"))
+    assert not charge_from_grid_available(site, None)
 
 
 def test_itc_disclaimer_is_us_only() -> None:

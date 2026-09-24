@@ -17,7 +17,7 @@ from homeassistant.util import dt as dt_util
 from .const import CONF_PHASE_LAYOUT, DOMAIN, SLOW_INTERVAL, STREAM_STALE_AFTER
 from .credentials import TokenKeeper, translate_errors
 from .enlighten_client.battery import BatteryConfigClient
-from .enlighten_client.models import BatterySettings
+from .enlighten_client.models import BatterySettings, SiteSettings
 from .envoy_client.errors import EnvoyAuthError, EnvoyError, EnvoyStreamUnavailable
 from .envoy_client.local import EnvoyClient
 from .envoy_client.models import (
@@ -181,6 +181,9 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
 
 
 class CloudCoordinator(DataUpdateCoordinator[BatterySettings]):
+    """Polls `batterySettings`. `siteSettings` (region and feature flags, spec 3.3) is read once,
+    on the first update that reaches the cloud."""
+
     def __init__(
         self,
         hass: HomeAssistant,
@@ -192,9 +195,12 @@ class CloudCoordinator(DataUpdateCoordinator[BatterySettings]):
             hass, _LOGGER, config_entry=entry, name=f"{DOMAIN} cloud", update_interval=interval
         )
         self.battery = battery
+        self.site: SiteSettings | None = None
 
     async def _async_update_data(self) -> BatterySettings:
         with translate_errors("Enlighten"):
+            if self.site is None:
+                self.site = await self.battery.site_settings()
             return await self.battery.battery_settings()
 
 
