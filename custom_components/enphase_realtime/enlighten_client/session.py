@@ -4,9 +4,10 @@ Pass a dedicated aiohttp session (in Home Assistant, `async_create_clientsession
 one: the login lives in its cookie jar.
 
 The Enlighten website authenticates with the `_enlighten_4_session` cookie, whose value is the
-`session_id` from `login.json`. When the login response doesn't set it, it's set here (spike S1).
-batteryConfig calls also need the numeric user ID (spike S2), found in the login body or in the
-`data` claim of a manager-token JWT.
+`session_id` from `login.json`. The login sets it (spike S1, confirmed September 2026); if a
+future login stops doing so, it's set here. batteryConfig calls also need the numeric user ID
+(spike S2), the `data.user_id` claim of the `manager_token` JWT in the login body. The body's
+`system_id` is the account's site ID.
 """
 
 from __future__ import annotations
@@ -75,6 +76,8 @@ class EnlightenSession:
         self._base = URL(base_url)
         self.session_id: str | None = None
         self.user_id: int | None = None
+        # The site the login lands on. Accounts with several sites still need `search_sites`.
+        self.system_id: int | None = None
 
     @property
     def email(self) -> str:
@@ -116,6 +119,8 @@ class EnlightenSession:
                 {SESSION_COOKIE: session_id}, response_url=self._base
             )
         self.user_id = self._find_user_id(body)
+        system_id = body.get("system_id")
+        self.system_id = system_id if isinstance(system_id, int) else None
         if self.user_id is None:
             _LOGGER.warning("Enlighten login succeeded but no user ID was found (spike S2)")
 

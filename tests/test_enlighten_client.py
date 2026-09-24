@@ -57,7 +57,7 @@ class FakeEnlighten:
         if self.reject_login or form["user[password]"] != "hunter2":
             return web.json_response({"message": "Invalid email or password"}, status=401)
         self.sid = f"sid-{self.logins}"
-        body: dict = {"session_id": self.sid, "message": "success"}
+        body: dict = {"session_id": self.sid, "message": "success", "system_id": SITE}
         manager = make_jwt({"data": {"user_id": USER, "session_id": self.sid}, "exp": 2**31})
         if self.user_id_in == "body":
             body["user_id"] = USER
@@ -165,6 +165,7 @@ async def test_login_sets_session_cookie_and_finds_user_id(
     assert cloud.session_id == "sid-1"
     assert cloud.cookie("_enlighten_4_session") == "sid-1"
     assert cloud.user_id == USER
+    assert cloud.system_id == SITE
 
 
 async def test_login_keeps_a_session_cookie_the_server_set(
