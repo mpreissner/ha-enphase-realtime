@@ -28,7 +28,7 @@ def jwt_claims(token: str) -> dict[str, Any]:
     try:
         payload = token.split(".")[1]
         claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
-    except (IndexError, ValueError, binascii.Error, UnicodeDecodeError):
+    except IndexError, ValueError, binascii.Error, UnicodeDecodeError:
         return {}
     return claims if isinstance(claims, dict) else {}
 

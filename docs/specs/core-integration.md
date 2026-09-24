@@ -71,6 +71,9 @@ custom_components/enphase_realtime/
   because the Envoy certificate is self-signed. This keeps aiohttp as the only runtime
   dependency, since it ships with HA; `manifest.json` `requirements` stays empty. This is a deliberate break from
   ha-span-ebus's `requests`: the stream endpoint needs a real async reader.
+- **Minimum Home Assistant: 2026.8.0** (`hacs.json`), and with it Python 3.14. 2026.8 is the
+  first release with `DeviceInfo.via_device_id`. 2026.9 deprecates `via_device` (removal in
+  2027.8), so starting at 2026.8 avoids carrying both forms.
 - **Clients.** Neither client imports `homeassistant`. They parse responses into dataclasses in
   `models.py`, so tests can use the saved fixtures without HA installed.
 - **Pytest.** `pythonpath` points at `custom_components/enphase_realtime`, the same as in
@@ -263,6 +266,9 @@ discarded.
 - System Controller (Enpower serial)
 - one device per IQ Battery (serial)
 - one device per microinverter, all disabled by default
+
+The Envoy device is registered at setup, before the platforms load, and the others link to it
+with `via_device_id`, its device registry ID.
 
 **Unique IDs:** `<serial>_<key>`.
 

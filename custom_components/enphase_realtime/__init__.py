@@ -10,6 +10,7 @@ from datetime import timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, CONF_HOST, CONF_PASSWORD, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 from .const import (
@@ -39,6 +40,7 @@ from .coordinator import (
 from .credentials import TokenKeeper, translate_errors
 from .enlighten_client.battery import BatteryConfigClient
 from .enlighten_client.session import EnlightenSession
+from .entity import envoy_device
 from .envoy_client.local import EnvoyClient
 from .envoy_client.models import PhaseLayout
 
@@ -56,6 +58,8 @@ PLATFORMS: list[Platform] = [
 class EnphaseData:
     serial: str
     firmware: str
+    # The Envoy's device registry ID, which batteries and the System Controller hang off.
+    envoy_device_id: str
     phase_layout: PhaseLayout
     hardware: Hardware
     client: EnvoyClient
@@ -131,9 +135,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
         if stream.unavailable:
             stream = None
 
+    # Registered before the platforms so child devices can point at it by ID.
+    envoy = dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id, **envoy_device(serial, data[CONF_FIRMWARE])
+    )
     entry.runtime_data = EnphaseData(
         serial=serial,
         firmware=data[CONF_FIRMWARE],
+        envoy_device_id=envoy.id,
         phase_layout=PhaseLayout(data[CONF_PHASE_LAYOUT]),
         hardware=hardware,
         client=client,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
@@ -68,6 +69,27 @@ async def test_setup_creates_entities(
     assert await hass.config_entries.async_unload(config_entry.entry_id)
     await hass.async_block_till_done()
     assert config_entry.state is ConfigEntryState.NOT_LOADED
+
+
+async def test_child_devices_hang_off_the_envoy(
+    hass: HomeAssistant,
+    fake: FakeEnphase,
+    config_entry: MockConfigEntry,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    await _setup(hass, config_entry)
+    registry = dr.async_get(hass)
+    envoy = registry.async_get(config_entry.runtime_data.envoy_device_id)
+    assert envoy is not None
+    assert (DOMAIN, SERIAL) in envoy.identifiers
+    children = [
+        d
+        for d in dr.async_entries_for_config_entry(registry, config_entry.entry_id)
+        if d.id != envoy.id
+    ]
+    assert children
+    assert all(d.via_device_id == envoy.id for d in children)
+    assert "via_device" not in caplog.text  # the form deprecated in HA 2026.9
 
 
 async def test_without_stream_falls_back_to_livedata(

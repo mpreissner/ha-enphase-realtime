@@ -93,7 +93,7 @@ async def run_stream(
                 backoff.reset()
                 on_frame(frame)
             err: EnvoyError = EnvoyConnectionError("stream ended")
-        except (EnvoyStreamUnavailable, EnvoyAuthError):
+        except EnvoyStreamUnavailable, EnvoyAuthError:
             raise
         except (EnvoyConnectionError, EnvoyParseError) as caught:
             err = caught

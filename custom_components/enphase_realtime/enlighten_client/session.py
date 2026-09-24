@@ -60,7 +60,7 @@ def _user_id_from_jwt(token: Any) -> int | None:
     try:
         payload = token.split(".")[1]
         claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
-    except (IndexError, ValueError, binascii.Error, UnicodeDecodeError):
+    except IndexError, ValueError, binascii.Error, UnicodeDecodeError:
         return None
     data = claims.get("data") if isinstance(claims, dict) else None
     user_id = data.get("user_id") if isinstance(data, dict) else None
