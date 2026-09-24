@@ -19,6 +19,12 @@ dev = [
     # manifest doesn't declare it, but the tests run without HA and need it here.
     "aiohttp>=3.10",
 ]
+# The Home Assistant-level tests in tests_ha/ (config flow, setup, diagnostics). Kept apart from
+# `dev`: this pins an exact Home Assistant and pytest, and needs HA's Python (3.14).
+# Run with `pytest -o pythonpath=. tests_ha`.
+ha = [
+    "pytest-homeassistant-custom-component>=0.13.366",
+]
 
 [tool.ruff]
 line-length = 100
@@ -59,6 +65,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Tests assert on internals and use asserts by design.
 "tests/*" = ["S101"]
+"tests_ha/*" = ["S101"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
