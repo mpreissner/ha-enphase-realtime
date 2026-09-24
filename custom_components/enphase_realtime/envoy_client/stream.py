@@ -7,10 +7,19 @@ separate events, and lines starting with `:` are keepalive comments.
 
 from __future__ import annotations
 
+import asyncio
 import codecs
 import json
+from collections.abc import AsyncIterator, Awaitable, Callable
 
-from .models import EnvoyParseError, StreamFrame
+from .errors import (
+    EnvoyAuthError,
+    EnvoyConnectionError,
+    EnvoyError,
+    EnvoyParseError,
+    EnvoyStreamUnavailable,
+)
+from .models import StreamFrame
 
 
 def parse_stream_line(line: str) -> StreamFrame | None:
@@ -44,3 +53,50 @@ class StreamDecoder:
                 f"stream line exceeds {self.MAX_LINE} characters without a newline"
             )
         return [frame for line in lines if (frame := parse_stream_line(line)) is not None]
+
+
+class Backoff:
+    """Reconnect delays: 1 s, doubling to 60 s, back to 1 s after a good frame (spec 3.1)."""
+
+    def __init__(self, initial: float = 1.0, maximum: float = 60.0) -> None:
+        self._initial = initial
+        self._maximum = maximum
+        self._next = initial
+
+    def next_delay(self) -> float:
+        delay = self._next
+        self._next = min(self._next * 2, self._maximum)
+        return delay
+
+    def reset(self) -> None:
+        self._next = self._initial
+
+
+async def run_stream(
+    connect: Callable[[], AsyncIterator[StreamFrame]],
+    on_frame: Callable[[StreamFrame], None],
+    *,
+    on_disconnect: Callable[[EnvoyError], None] | None = None,
+    sleep: Callable[[float], Awaitable[object]] = asyncio.sleep,
+    backoff: Backoff | None = None,
+) -> None:
+    """Keep a stream open for as long as the task runs, reconnecting with backoff.
+
+    Connection drops, silences and bad frames reconnect. `EnvoyStreamUnavailable` and
+    `EnvoyAuthError` are raised to the caller: retrying won't fix either. Cancel the task to
+    stop.
+    """
+    backoff = backoff or Backoff()
+    while True:
+        try:
+            async for frame in connect():
+                backoff.reset()
+                on_frame(frame)
+            err: EnvoyError = EnvoyConnectionError("stream ended")
+        except (EnvoyStreamUnavailable, EnvoyAuthError):
+            raise
+        except (EnvoyConnectionError, EnvoyParseError) as caught:
+            err = caught
+        if on_disconnect is not None:
+            on_disconnect(err)
+        await sleep(backoff.next_delay())
