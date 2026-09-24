@@ -1,0 +1,25 @@
+.env
+*.pyc
+__pycache__/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# uv writes this on first `uv run`; nothing here is published as a package.
+uv.lock
+
+# Never commit Envoy tokens, Enlighten sessions, or captures. Captures carry
+# live session cookies.
+.env*
+*.token
+token.txt
+*.flow
+*.har
+samples/
+.enphase_realtime/
+
+.claude/
