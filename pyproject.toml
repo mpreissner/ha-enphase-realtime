@@ -12,8 +12,12 @@ dev = [
     # turns CI red on a pull request that changed nothing. Raise the cap
     # deliberately, with whatever fixes the new rules ask for.
     "ruff>=0.16,<0.17",
-    # Imported by the cloud client under test.
-    "requests>=2.31.0",
+    # Both clients are async; tests drive them (and a fake aiohttp server for
+    # the XSRF write sequence) without Home Assistant installed.
+    "pytest-asyncio>=0.24",
+    # The only runtime dependency, used by both clients. HA ships it, so the
+    # manifest doesn't declare it, but the tests run without HA and need it here.
+    "aiohttp>=3.10",
 ]
 
 [tool.ruff]
@@ -59,5 +63,7 @@ ignore = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # The integration is what ships and what HA imports, so it is what the tests
-# import too — `enphase_client` resolves inside custom_components/enphase_realtime/.
+# import too — `envoy_client` and `enlighten_client` resolve inside
+# custom_components/enphase_realtime/.
 pythonpath = ["custom_components/enphase_realtime"]
+asyncio_mode = "auto"
