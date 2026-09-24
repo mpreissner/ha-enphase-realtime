@@ -262,7 +262,7 @@ Source key: **S** = stream, **F** = fast, **L** = slow, **C** = cloud.
 | Production power, total and per phase | S `production` | `current_power_production`, `production_ct_power` |
 | Consumption power, total and per phase | S `total-consumption` | `current_power_consumption` |
 | Net power, total and per phase (positive = import) | S `net-consumption` | `current_net_power_consumption` |
-| Battery power (positive = discharge) | F `livedata.meters.storage.agg_p_mw` / 1000, sign flipped | `current_battery_discharge` |
+| Battery power (positive = discharge) | F `livedata.meters.storage.agg_p_mw` / 1000, raw sign (livedata balances as load = grid + pv + storage, so positive already means discharging) | `current_battery_discharge` |
 | Grid power | F `meters.grid.agg_p_mw` / 1000 | – (new) |
 | Load power | F `meters.load.agg_p_mw` / 1000 | – (new) |
 | PV power (livedata) | F `meters.pv.agg_p_mw` / 1000 | – (new; this is the fallback when the stream is off) |
