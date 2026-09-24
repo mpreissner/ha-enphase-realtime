@@ -12,9 +12,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
+from .errors import EnlightenParseError
 
-class EnlightenParseError(ValueError):
-    """A payload didn't have the shape its parser expects."""
+__all__ = ["EnlightenParseError"]  # re-exported: parsers raise it, callers catch it from here
 
 
 @contextmanager

@@ -17,9 +17,9 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
+from .errors import EnvoyParseError
 
-class EnvoyParseError(ValueError):
-    """A payload didn't have the shape its parser expects."""
+__all__ = ["EnvoyParseError"]  # re-exported: parsers raise it, callers catch it from here
 
 
 @contextmanager

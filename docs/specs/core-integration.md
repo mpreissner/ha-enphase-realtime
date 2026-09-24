@@ -194,18 +194,22 @@ The user step asks for:
 
 From these, setup:
 
-1. Logs in with `POST /login/login.json`, getting `session_id` and hopefully the
-   `_enlighten_4_session` cookie (spike S1).
+1. Logs in with `POST /login/login.json` (form fields `user[email]`, `user[password]`), getting
+   `session_id`. In the app capture the `_enlighten_4_session` cookie holds that same value, so
+   the client sets the cookie itself if the login response doesn't (spike S1).
 2. Gets the Envoy serial from `GET https://<host>/info` (no auth needed). The response is
    **XML**, not JSON: the serial is `envoy_info/device/sn` and the firmware is
    `envoy_info/device/software` (for example `D8.3.6086`). Firmware below 7 is rejected with a
    clear error (see non-goals).
 3. Gets an owner token with `POST https://entrez.enphaseenergy.com/tokens`
-   `{session_id, serial, username}`. This is the same flow the vk2him add-on uses.
+   `{session_id, serial_num, username}`; the response body is the token itself. This is the
+   same flow the vk2him add-on uses.
 4. Resolves `site_id` and `user_id` from the Enlighten session (spike S2). The app capture shows
    `GET /app-api/search_sites.json?searchText=&favourite=true` returning
    `sites[{id, path, title, favourite}]`. That gives the site ID, but two of the four captured
-   calls returned an empty list, and it doesn't give `user_id`. The non-empty responses list the
+   calls returned an empty list, and it doesn't give `user_id`. `user_id` is in the `data`
+   claim of the `enlighten_manager_token_production` cookie JWT (and may be in the login body).
+   The non-empty responses list the
    same site twice, so dedupe on `id` before counting. If more than one site remains, the flow
    asks the user to pick; if there's none, it asks for the site ID.
 5. Reads `siteSettings` for the region and hardware flags, and `/ivp/meters` for the phase
@@ -480,8 +484,8 @@ Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`.
 
 | ID | Question | How to settle it |
 |---|---|---|
-| S1 | Does `POST /login/login.json` set `_enlighten_4_session` (and allow `batterySettings` GETs)? | One login with real credentials; no retry on failure |
-| S2 | How to get `site_id` and `user_id` from a session | **Partly settled:** `search_sites.json?favourite=true` returns `sites[].id`, but was empty in 2 of 4 captured calls (4.1). Still needed: `user_id` (check the login.json body), and why `search_sites` is sometimes empty |
+| S1 | Does `POST /login/login.json` set `_enlighten_4_session` (and allow `batterySettings` GETs)? | **Mostly settled:** the cookie's value equals the login `session_id`, so the client sets it when the login doesn't. Confirm with one real login (`tools/spike_login.py`) |
+| S2 | How to get `site_id` and `user_id` from a session | **Partly settled:** `search_sites.json?favourite=true` returns `sites[].id`, but was empty in 2 of 4 captured calls (4.1). `user_id` is `data.user_id` in the `enlighten_manager_token_production` cookie JWT; the client also checks the login body and a `manager_token` field. Still needed: which of those a fresh login provides (`tools/spike_login.py`), and why `search_sites` is sometimes empty |
 | S3 | Does `PUT {"batteryBackupPercentage":N}` take effect, and where does it show locally? | Test in Self-Consumption with the user watching, then restore |
 | S4 | Does `POST /ivp/ensemble/relay` work with an owner token on D8.3.6086? | Only with the user present, battery SoC above 50%, and an immediate restore |
 | S5 | Do `/ivp/meters/readings` and `reports` lifetime counters match the core's lifetime values, and are they monotonic? Which storage field is charged and which discharged? (Reference site: `actEnergyDlvd` 626 Wh, `actEnergyRcvd` 13,560 Wh, on a new battery that spent the test day charging from grid, which suggests `Rcvd` = charged) | Compare during the phase 2 side-by-side run; check which storage counter rises while `agg_p_mw` is negative |
