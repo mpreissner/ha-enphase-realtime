@@ -1,4 +1,5 @@
-"""Very-low SoC number (spec 6.2). The backup reserve joins it once spike S3 is settled."""
+"""Battery shutdown level (`veryLowSoc`) number (spec 6.2). The backup reserve joins it once spike
+S3 is settled."""
 
 from __future__ import annotations
 
@@ -30,7 +31,7 @@ class EnphaseNumberDescription(NumberEntityDescription):
 
 VERY_LOW_SOC = EnphaseNumberDescription(
     key="very_low_soc",
-    name="Very low SoC",
+    name="Battery shutdown level",
     icon="mdi:battery-alert-variant-outline",
     native_unit_of_measurement=PERCENTAGE,
     native_step=1,

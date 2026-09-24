@@ -94,6 +94,8 @@ class CloudControl[T](EnphaseEntity[FastData]):
         if status is None:
             return
         self._cancel_timer()
+        if status is Confirmation.CONFIRMED:
+            _LOGGER.debug("%s: the Envoy confirms %s", self.entity_id, requested)
         if status is Confirmation.FAILED:
             # The service call returned long ago, so this is a warning, not an exception.
             _LOGGER.warning(
@@ -137,6 +139,7 @@ class CloudControl[T](EnphaseEntity[FastData]):
                 translation_key="write_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+        _LOGGER.debug("%s: Enphase accepted %s; waiting for the Envoy", self.entity_id, requested)
         self._cancel_timer()
         self._confirm.start(requested, dt_util.utcnow())
         self._cancel_timeout = async_call_later(self.hass, CONFIRM_TIMEOUT, self._timed_out)
