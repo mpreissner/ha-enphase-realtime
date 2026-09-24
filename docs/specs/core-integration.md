@@ -201,7 +201,11 @@ From these, setup:
 
 1. Logs in with `POST /login/login.json` (form fields `user[email]`, `user[password]`), getting
    `session_id`. In the app capture the `_enlighten_4_session` cookie holds that same value, so
-   the client sets the cookie itself if the login response doesn't (spike S1).
+   the client sets the cookie itself if the login response doesn't (spike S1). Every
+   `enlighten.enphaseenergy.com` request sends its own `User-Agent`: Enlighten answers **406**
+   to any agent containing `HomeAssistant`, which is what Home Assistant's sessions send (live
+   check, September 2026). A login 4xx other than 401/403 is a connection error, not bad
+   credentials. Entrez doesn't filter on the agent.
 2. Gets the Envoy serial from `GET https://<host>/info` (no auth needed). The response is
    **XML**, not JSON: the serial is `envoy_info/device/sn` and the firmware is
    `envoy_info/device/software` (for example `D8.3.6086`). Firmware below 7 is rejected with a
@@ -322,7 +326,7 @@ aren't exposed in v1.
 | Aggregate SoC | F `secctrl.agg_soc` | `envoy_battery` |
 | Available energy, capacity | F `secctrl.ENC_agg_avail_energy`, `Max_energy` | `available_battery_energy`, `battery_capacity` |
 | Reserve energy | F `sc/sched['Agg VLS Energy']` | `reserve_battery_energy` |
-| Reserve level | F `secctrl.VLS_Limit` | `reserve_battery_level` |
+| Battery shutdown level | F `secctrl.VLS_Limit` | `reserve_battery_level` |
 | Backup SoC target | F `secctrl.configured_backup_soc` | – |
 | State of health | F `secctrl.ENC_agg_soh` | – (new) |
 | Controller mode (enum: ID, ZN, CG, DG, ND, DL, CP, …) | F `sc/sched.acb_current_mode`, labelled using `sched_mode_key` | – (new) |
@@ -395,7 +399,7 @@ A failed write (anything other than 200, or an XSRF or auth error) raises
 | Entity | Write | Confirm locally with | Verified? |
 |---|---|---|---|
 | Charge from grid switch | On: `POST acceptDisclaimer {"disclaimer-type":"itc"}`, then `PUT {"chargeFromGrid":true,"acceptedItcDisclaimer":true,"chargeBeginTime":…,"chargeEndTime":…,"chargeFromGridScheduleEnabled":false}` (keeps the current begin and end times from the last GET). Off: `PUT {"chargeFromGrid":false}` | `sc/sched['Charge From Grid Allowed']` | **Yes**, confirmed within 10–20 s |
-| Very-low SoC number | `PUT {"veryLowSoc":N}`; min and max from cloud `veryLowSocMin` / `veryLowSocMax` (5–25) | `secctrl.VLS_Limit == N` | **Yes**, confirmed within about 20 s |
+| Battery shutdown level number (`very_low_soc`) | `PUT {"veryLowSoc":N}`; min and max from cloud `veryLowSocMin` / `veryLowSocMax` (5–25) | `secctrl.VLS_Limit == N` | **Yes**, confirmed within about 20 s |
 | Backup reserve number | `PUT {"batteryBackupPercentage":N}`; min and max from the cloud | `secctrl.configured_backup_soc == N` | **No (spike S3).** Also only makes sense outside Full Backup, where the cloud pins it at 100. The entity is unavailable when `profile == backup_only` |
 
 Charge-from-grid schedule (`chargeFromGridScheduleEnabled`, begin and end times): exposed as

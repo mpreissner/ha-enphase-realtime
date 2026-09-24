@@ -38,6 +38,12 @@ SESSION_COOKIE = "_enlighten_4_session"
 MANAGER_TOKEN_COOKIE = "enlighten_manager_token_production"
 CLOUD_TIMEOUT = aiohttp.ClientTimeout(total=30)
 
+# Enlighten answers 406 to any User-Agent containing "HomeAssistant", which is what Home
+# Assistant's sessions send, so every request here sets its own. Found in the live check,
+# September 2026.
+USER_AGENT = f"enphase-realtime aiohttp/{aiohttp.__version__}"
+_UA = {"User-Agent": USER_AGENT}
+
 # How an expired session answers: a redirect to the login page, a refusal, or the page itself.
 _SESSION_EXPIRED = frozenset({301, 302, 303, 307, 308, 401, 403})
 
@@ -97,6 +103,7 @@ class EnlightenSession:
             async with self._session.post(
                 self._base.join(URL(LOGIN_PATH)),
                 data=form,
+                headers=_UA,
                 allow_redirects=False,
                 timeout=CLOUD_TIMEOUT,
             ) as resp:
@@ -109,8 +116,17 @@ class EnlightenSession:
             raise EnlightenConnectionError(f"login: {err!r}") from err
         if status >= 500:
             raise EnlightenConnectionError(f"login: HTTP {status}")
+        if status >= 400 and status not in (401, 403):
+            # Not a verdict on the credentials: the request itself was turned away.
+            raise EnlightenError(f"login: HTTP {status}")
         session_id = body.get("session_id") if isinstance(body, dict) else None
         if status != 200 or not isinstance(session_id, str) or not session_id:
+            # Key names only: the values include the session.
+            _LOGGER.debug(
+                "Login refused: HTTP %s, body keys %s",
+                status,
+                sorted(body) if isinstance(body, dict) else type(body).__name__,
+            )
             raise EnlightenAuthError(f"login refused (HTTP {status})")
 
         self.session_id = session_id
@@ -159,7 +175,7 @@ class EnlightenSession:
                     self._base.join(URL(path)),
                     params=params,
                     json=json,
-                    headers=headers,
+                    headers={**_UA, **(headers or {})},
                     allow_redirects=False,
                     timeout=CLOUD_TIMEOUT,
                 ) as resp:

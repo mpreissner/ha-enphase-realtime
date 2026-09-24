@@ -20,12 +20,22 @@ from tests.helpers import load_json, make_jwt, serve
 SITE = 1234567
 USER = 7654321
 PAGE = "/service/batteryConfig/api/v1"
+# What Home Assistant's sessions send. Enlighten answers 406 to it (live check, September 2026).
+HA_USER_AGENT = "HomeAssistant/2026.9.3 aiohttp/3.14.3 Python/3.14"
+
+
+@web.middleware
+async def refuse_home_assistant(request: web.Request, handler):
+    if "HomeAssistant" in request.headers.get("User-Agent", ""):
+        return web.Response(status=406, text="Not Acceptable")
+    return await handler(request)
 
 
 class FakeEnlighten:
     def __init__(self) -> None:
         self.logins = 0
         self.reject_login = False
+        self.turn_away_login = False  # answer the login 406, as for an unwelcome User-Agent
         self.sid: str | None = None  # the one live session; None once it has expired
         self.xsrf: str | None = None
         self.xsrf_issued = 0
@@ -36,7 +46,7 @@ class FakeEnlighten:
         self.expire_before_write = 0  # expire the session on this many upcoming writes
         self.events: list[tuple] = []
 
-        self.app = web.Application()
+        self.app = web.Application(middlewares=[refuse_home_assistant])
         r = self.app.router
         r.add_post("/login/login.json", self.login)
         r.add_get("/login", self.login_page)
@@ -52,6 +62,8 @@ class FakeEnlighten:
 
     async def login(self, request: web.Request) -> web.Response:
         self.logins += 1
+        if self.turn_away_login:
+            return web.Response(status=406, text="Not Acceptable")
         form = await request.post()
         assert form["user[email]"] == "owner@example.com"
         if self.reject_login or form["user[password]"] != "hunter2":
@@ -135,8 +147,12 @@ class FakeEnlighten:
 
 @pytest.fixture
 async def http() -> AsyncIterator[aiohttp.ClientSession]:
-    # unsafe=True lets the jar keep cookies for 127.0.0.1; real hosts don't need it.
-    async with aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar(unsafe=True)) as session:
+    # unsafe=True lets the jar keep cookies for 127.0.0.1; real hosts don't need it. The session
+    # sends Home Assistant's User-Agent, as it would in Home Assistant, so every test shows the
+    # client replacing it.
+    async with aiohttp.ClientSession(
+        cookie_jar=aiohttp.CookieJar(unsafe=True), headers={"User-Agent": HA_USER_AGENT}
+    ) as session:
         yield session
 
 
@@ -188,6 +204,17 @@ async def test_login_without_a_user_id_leaves_battery_calls_unavailable(
     assert cloud.user_id is None
     with pytest.raises(EnlightenError, match="user ID"):
         await BatteryConfigClient(cloud, SITE).battery_settings()
+
+
+async def test_login_turned_away_is_not_bad_credentials(
+    http: aiohttp.ClientSession, fake: tuple[FakeEnlighten, str]
+) -> None:
+    """A 406 is about the request, not the password, so it mustn't start reauth."""
+    server, url = fake
+    server.turn_away_login = True
+    with pytest.raises(EnlightenError, match="HTTP 406") as info:
+        await _cloud(http, url).login()
+    assert not isinstance(info.value, EnlightenAuthError)
 
 
 async def test_refused_login_is_not_retried(

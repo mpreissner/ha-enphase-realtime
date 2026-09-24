@@ -249,8 +249,9 @@ def _fast_sensors(
         energy(
             "reserve_battery_energy", "Reserve battery energy", lambda d: schedule(d).reserve_energy
         ),
+        # The unique ID predates the name the Enphase app uses.
         percent(
-            "reserve_battery_level", "Reserve battery level", lambda d: secctrl(d).very_low_soc
+            "reserve_battery_level", "Battery shutdown level", lambda d: secctrl(d).very_low_soc
         ),
         percent(
             "backup_soc_target", "Backup SoC target", lambda d: secctrl(d).configured_backup_soc
