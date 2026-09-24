@@ -28,9 +28,9 @@ ha = [
 
 [tool.ruff]
 line-length = 100
-# Home Assistant 2024.12 requires Python 3.12, so that is the floor the shipped
-# integration has to run on — not the newer interpreter used for development.
-target-version = "py312"
+# Home Assistant 2026.8, the oldest release supported (hacs.json), requires Python 3.14.
+# It is also the first with DeviceInfo.via_device_id, which the child devices use.
+target-version = "py314"
 
 [tool.ruff.lint]
 # Pinned explicitly. Without a select, the rule set is whatever ruff defaults to

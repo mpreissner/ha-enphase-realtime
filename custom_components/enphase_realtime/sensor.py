@@ -466,18 +466,18 @@ async def async_setup_entry(
             add(
                 rt.slow,
                 _battery_sensors(battery.serial),
-                child_device("IQ Battery", battery.serial, rt.serial),
+                child_device("IQ Battery", battery.serial, rt.envoy_device_id),
                 battery.serial,
             )
         for controller in slow.inventory.system_controllers:
-            device = child_device("IQ System Controller", controller.serial, rt.serial)
+            device = child_device("IQ System Controller", controller.serial, rt.envoy_device_id)
             contacts_device = device
             add(rt.slow, _controller_sensors(controller.serial), device, controller.serial)
     for inverter in slow.inverters:
         add(
             rt.slow,
             _inverter_sensors(inverter.serial),
-            child_device("IQ Microinverter", inverter.serial, rt.serial),
+            child_device("IQ Microinverter", inverter.serial, rt.envoy_device_id),
             inverter.serial,
         )
     for contact_id, settings in slow.dry_contact_settings.items():

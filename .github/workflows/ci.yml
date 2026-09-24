@@ -8,19 +8,15 @@ on:
 
 jobs:
   test:
-    name: ruff + pytest (py${{ matrix.python-version }})
+    name: ruff + pytest (py3.14)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # Home Assistant 2024.12 runs on 3.12; 3.13 is what current cores use.
-        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
+          # Home Assistant 2026.8, the oldest release supported, requires 3.14.
+          python-version: "3.14"
 
       - name: Install dev toolchain
         # --group needs pip 25.1+, which is newer than some runner images ship.

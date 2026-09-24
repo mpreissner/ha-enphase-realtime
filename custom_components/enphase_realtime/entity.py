@@ -24,7 +24,7 @@ def envoy_device(serial: str, firmware: str) -> DeviceInfo:
     )
 
 
-def child_device(model: str, serial: str, envoy_serial: str) -> DeviceInfo:
+def child_device(model: str, serial: str, envoy_device_id: str) -> DeviceInfo:
     """System Controller, IQ Battery or microinverter, all hanging off the Envoy."""
     return DeviceInfo(
         identifiers={(DOMAIN, serial)},
@@ -32,7 +32,7 @@ def child_device(model: str, serial: str, envoy_serial: str) -> DeviceInfo:
         model=model,
         name=f"{model} {serial}",
         serial_number=serial,
-        via_device=(DOMAIN, envoy_serial),
+        via_device_id=envoy_device_id,
     )
 
 

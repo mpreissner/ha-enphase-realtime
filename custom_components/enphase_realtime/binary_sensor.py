@@ -156,13 +156,15 @@ async def async_setup_entry(
     contacts_device = envoy
     if slow.inventory is not None:
         for battery in slow.inventory.batteries:
-            device = child_device("IQ Battery", battery.serial, rt.serial)
+            device = child_device("IQ Battery", battery.serial, rt.envoy_device_id)
             entities += [
                 EnphaseBinarySensor(rt.slow, d, device, battery.serial)
                 for d in _battery(battery.serial)
             ]
         for controller in slow.inventory.system_controllers:
-            contacts_device = child_device("IQ System Controller", controller.serial, rt.serial)
+            contacts_device = child_device(
+                "IQ System Controller", controller.serial, rt.envoy_device_id
+            )
             entities += [
                 EnphaseBinarySensor(rt.slow, d, contacts_device, controller.serial)
                 for d in _controller(controller.serial)
