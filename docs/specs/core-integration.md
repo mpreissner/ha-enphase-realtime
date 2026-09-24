@@ -63,11 +63,13 @@ custom_components/enphase_realtime/
     __init__.py  session.py  battery.py  models.py
 ```
 
-- **Transport.** Both clients use `aiohttp` and take a session injected by the caller. HA
-  passes `async_get_clientsession(hass)` to the cloud client and
-  `async_create_clientsession(hass, verify_ssl=False)` to the Envoy client, because the Envoy
-  certificate is self-signed. This keeps aiohttp as the only runtime dependency, since it ships
-  with HA; `manifest.json` `requirements` stays empty. This is a deliberate break from
+- **Transport.** Both clients use `aiohttp` and take a session injected by the caller. Each
+  config entry creates two sessions of its own with `async_create_clientsession(hass)`, which
+  HA detaches when the entry unloads (they share HA's connector, so they are never closed
+  directly). The cloud one gets its own cookie jar, so the
+  Enlighten login never mixes with HA's shared session. The Envoy one has `verify_ssl=False`,
+  because the Envoy certificate is self-signed. This keeps aiohttp as the only runtime
+  dependency, since it ships with HA; `manifest.json` `requirements` stays empty. This is a deliberate break from
   ha-span-ebus's `requests`: the stream endpoint needs a real async reader.
 - **Clients.** Neither client imports `homeassistant`. They parse responses into dataclasses in
   `models.py`, so tests can use the saved fixtures without HA installed.

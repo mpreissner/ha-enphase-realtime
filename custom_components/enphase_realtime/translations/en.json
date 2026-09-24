@@ -1,0 +1,81 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to your Envoy",
+        "description": "Enter the Envoy's address and your Enphase Enlighten login. The login is used to get the Envoy's owner token and to read your battery settings.",
+        "data": {
+          "host": "Envoy host",
+          "email": "Enlighten email",
+          "password": "Enlighten password"
+        },
+        "data_description": {
+          "host": "Hostname or IP address of the Envoy on your network."
+        }
+      },
+      "site": {
+        "title": "Choose the site",
+        "description": "Your Enlighten account has more than one site. Choose the one this Envoy belongs to.",
+        "data": {
+          "site_id": "Site"
+        }
+      },
+      "confirm": {
+        "title": "Confirm Envoy {serial}",
+        "description": "Found: {layout} · {hardware}.\n\nThe phase layout comes from the Envoy's current transformers and can't be changed here. Check the country and time zone; battery schedules use the site's time zone.",
+        "data": {
+          "country": "Country",
+          "time_zone": "Time zone"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Log in to Enlighten again",
+        "description": "Enphase refused the saved login. Enter your Enlighten email and password again.",
+        "data": {
+          "email": "Enlighten email",
+          "password": "Enlighten password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Couldn't reach the Envoy or Enphase's servers. Check the host and your network.",
+      "invalid_auth": "Enphase refused the email or password.",
+      "firmware_unsupported": "This Envoy runs firmware older than 7.0, which this integration doesn't support. Use the core Enphase Envoy integration instead.",
+      "unknown_phase_layout": "Couldn't work out whether the site is single-, split- or three-phase from the Envoy's meters. Please open an issue with the Envoy's firmware and meter setup.",
+      "no_site": "Enlighten didn't return a site for this account. Try again in a minute.",
+      "cloud_unavailable": "Couldn't read your battery settings from Enphase's servers. Try again later.",
+      "unknown": "Unexpected error. Check the log for details."
+    },
+    "abort": {
+      "already_configured": "This Envoy is already set up.",
+      "reauth_successful": "Logged in again.",
+      "wrong_envoy": "The host now answers as a different Envoy."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Enphase Realtime options",
+        "data": {
+          "fast_interval": "Local poll interval",
+          "stream_interval": "Stream update interval",
+          "cloud_interval": "Cloud poll interval",
+          "enable_stream": "Use the real-time meter stream",
+          "country": "Country",
+          "time_zone": "Time zone"
+        },
+        "data_description": {
+          "fast_interval": "How often to read live power, battery and grid status from the Envoy.",
+          "stream_interval": "Stream readings arrive about every second; this is how often entities are updated from them.",
+          "cloud_interval": "How often to read battery settings from Enphase's servers."
+        }
+      }
+    }
+  },
+  "issues": {
+    "phase_layout_changed": {
+      "title": "Envoy phase layout changed",
+      "description": "The Envoy's meters now report a {detected} layout, but this entry was set up as {stored}. Remove and re-add the integration so the per-phase entities match the new layout."
+    }
+  }
+}
