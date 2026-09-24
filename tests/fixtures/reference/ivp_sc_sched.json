@@ -1,0 +1,29 @@
+{
+  "acb_current_mode": 6,
+  "acb_debug_mode": -1,
+  "ENC_agg_energy": 2950,
+  "Agg Backup Energy": 5000,
+  "Agg VLS Energy": 500,
+  "Num_of_enc": 1,
+  "ENC_agg_soc": 59,
+  "Force Discharge": false,
+  "Charge From Grid Allowed": true,
+  "ACB_agg_soc": 0,
+  "ACB_agg_energy": 0,
+  "Num_of_acb": 0,
+  "agg_soc": 59,
+  "max_energy": 5000,
+  "sched_mode_key": [
+    "ID - Idle",
+    "ZN - Zero Net",
+    "CG - Charge From Grid",
+    "DG - Discharge to Grid",
+    "ND - No Discharge",
+    "DL - Discharge to Load",
+    "CP - Charge From PV",
+    "HEMS Discharge",
+    "HEMS Charge",
+    "FCR - Charge or discharge",
+    "HEMS Charge from Grid"
+  ]
+}

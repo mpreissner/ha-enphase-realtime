@@ -1,0 +1,68 @@
+{
+  "type": "battery-details",
+  "timestamp": "2026-09-24T19:17:39.181989142Z",
+  "data": {
+    "supportsMqtt": true,
+    "pollingInterval": 60,
+    "drEventActive": false,
+    "drEventMode": "",
+    "profile": "backup_only",
+    "batteryBackupPercentage": 100,
+    "requestedConfigMqtt": {
+      "powerMatchControl": {}
+    },
+    "requestedConfig": {},
+    "stormGuardState": "disabled",
+    "showStormGuardAlert": false,
+    "acceptedItcDisclaimer": "2026-09-24T19:13:11.950Z",
+    "hideChargeFromGrid": true,
+    "envoySupportsVls": true,
+    "chargeBeginTime": 120,
+    "chargeEndTime": 300,
+    "veryLowSoc": 10,
+    "veryLowSocMin": 5,
+    "veryLowSocMax": 25,
+    "chargeFromGrid": false,
+    "chargeFromGridScheduleEnabled": false,
+    "batteryBackupPercentageMax": 100,
+    "batteryBackupPercentageMin": 5,
+    "previousBatteryBackupPercentage": {
+      "self-consumption": 30,
+      "cost_savings": 30,
+      "backup_only": 100,
+      "expert": 30,
+      "ai_optimisation": 12
+    },
+    "systemTask": false,
+    "dtgControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": true,
+      "scheduleSupported": false,
+      "startTime": 960,
+      "endTime": 1140
+    },
+    "cfgControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": false,
+      "scheduleSupported": false,
+      "forceScheduleSupported": false,
+      "forceScheduleOpted": false
+    },
+    "rbdControl": {
+      "show": true,
+      "showDaySchedule": true,
+      "enabled": false,
+      "locked": true,
+      "scheduleSupported": false
+    },
+    "powerMatchControl": {
+      "show": true,
+      "enabled": true
+    },
+    "siteProfileStatus": "READY"
+  }
+}

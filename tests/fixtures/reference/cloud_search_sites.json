@@ -1,0 +1,16 @@
+{
+  "sites": [
+    {
+      "id": 1234567,
+      "path": "/web/1234567?v=3.4.0",
+      "title": "Reference Site",
+      "favourite": false
+    },
+    {
+      "id": 1234567,
+      "path": "/web/1234567?v=3.4.0",
+      "title": "Reference Site",
+      "favourite": false
+    }
+  ]
+}
