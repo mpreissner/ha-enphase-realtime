@@ -122,6 +122,7 @@ async def _login_and_token(
     try:
         owner = await request_owner_token(cloud, sessions.cloud, info.serial)
     except (EnlightenAuthError, EnvoyAuthError) as err:
+        _LOGGER.debug("Owner token request refused: %s", err)
         raise FlowError("invalid_auth") from err
     except (EnlightenError, EnvoyError) as err:
         _LOGGER.debug("Owner token request failed: %s", err)
