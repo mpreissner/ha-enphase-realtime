@@ -45,6 +45,11 @@ recorder:
 
 The energy panel reads the lifetime energy sensors, which update slowly and aren't excluded.
 
+**Which sensors to trigger on.** Use the live-poll sensors (grid, load, PV and battery power,
+grid status) for time-critical automations. The streamed meter sensors (production,
+consumption and net power, and the per-phase readings) average one reading a second, but the
+Envoy sometimes holds the stream for several seconds and then catches up in a burst.
+
 **Load shedding and the battery's own protection.** A 1 s update still has to pass through
 Home Assistant, your automation and the switch or relay it drives. An IQ Battery can hit its
 overload limit faster than that. Treat automations as a way to avoid reaching the limit, not as

@@ -34,6 +34,20 @@ Slow endpoints to avoid polling: `production.json` (30–55 s), `inventory.json`
 `home.json` (over 60 s). Installer-only endpoints return 401 with an owner token: `/ivp/peb/*`,
 `/ivp/tpm/*`, `/ivp/meters/cts`, `/installer/*`, `/ivp/mod/<eid>/mode/power`.
 
+### Update rates (measured 2026-09-25, D8.3.6086, MQTT add-on running)
+
+- **`/ivp/livedata/status` polled at 1 s** (plus `/ivp/ensemble/relay`): 152 polls, 0
+  failures. Median gap 1.10 s, mean 1.21 s. Fetch mean 0.36 s, worst 1.58 s. The Envoy kept
+  answering through every stream stall below. This is also where the MQTT project gets its
+  1 Hz on battery sites: it polls this endpoint in a loop with a 0.6 s sleep. It reads
+  `/stream/meter` only on v5 Envoys.
+- **`/stream/meter`**: about one frame a second on average, and none lost. But the Envoy
+  regularly holds frames for 3–13 s and then sends them as a burst of up to 8 frames within
+  30 ms. There were 6 stalls in 3 minutes, whether the live poll ran at 1 s (33 s stalled in
+  total) or slower (39 s). The client reads with `iter_any()`, so the buffering happens on the
+  Envoy's side. Treat the stream as detail for dashboards, not as a trigger that needs low
+  latency.
+
 **Dry contacts: never write.** On the reference system they switch real loads (HVAC and dryer).
 
 ## Local writes do not work (D8.3.6086)
