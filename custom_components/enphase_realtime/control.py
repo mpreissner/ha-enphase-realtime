@@ -29,18 +29,6 @@ from .entity import EnphaseEntity
 _LOGGER = logging.getLogger(__name__)
 
 
-def schedule(d: FastData):
-    if d.schedule is None:
-        raise KeyError("schedule")
-    return d.schedule
-
-
-def secctrl(d: FastData):
-    if d.secctrl is None:
-        raise KeyError("secctrl")
-    return d.secctrl
-
-
 class CloudControl[T](EnphaseEntity[FastData]):
     """Shows the requested value while the write is pending, then whatever the Envoy reports."""
 

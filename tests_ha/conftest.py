@@ -87,6 +87,8 @@ class FakeEnphase:
     # Fields merged over a fixture, so a test can move a local value (e.g. after a write).
     envoy_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
     site_settings_overrides: dict[str, Any] = field(default_factory=dict)
+    # Local POSTs as (path, body).
+    envoy_posts: list[tuple[str, Any]] = field(default_factory=list)
     # Cloud writes as (method, path, body), and an error to raise instead of accepting them.
     writes: list[tuple[str, str, Any]] = field(default_factory=list)
     write_error: EnlightenError | None = None
@@ -118,6 +120,14 @@ class FakeEnphase:
             payload.update(self.envoy_overrides[path])
         client.last_payloads[path] = payload
         return payload
+
+    async def post_json(
+        self, client: EnvoyClient, path: str, body: Any, timeout: Any = None
+    ) -> Any:
+        if path in self.envoy_errors:
+            raise self.envoy_errors[path]
+        self.envoy_posts.append((path, body))
+        return {}
 
     async def stream(self, client: EnvoyClient) -> AsyncIterator[StreamFrame]:
         if not self.stream_available:
@@ -174,6 +184,7 @@ def fake() -> Iterator[FakeEnphase]:
     fake = FakeEnphase()
     with (
         patch.object(EnvoyClient, "get_json", _bind(fake.get_json)),
+        patch.object(EnvoyClient, "post_json", _bind(fake.post_json)),
         patch.object(EnvoyClient, "info", _bind(fake.info)),
         patch.object(EnvoyClient, "stream_frames", _bind(fake.stream)),
         patch.object(EnlightenSession, "login", _bind(fake.login)),

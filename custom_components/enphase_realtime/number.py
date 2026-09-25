@@ -13,7 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import EnphaseConfigEntry
-from .control import CloudControl, secctrl
+from .control import CloudControl
 from .enlighten_client.battery import BatteryConfigClient
 from .entity import envoy_device
 
@@ -36,7 +36,7 @@ VERY_LOW_SOC = EnphaseNumberDescription(
     native_unit_of_measurement=PERCENTAGE,
     native_step=1,
     mode=NumberMode.BOX,
-    value_fn=lambda d: secctrl(d).very_low_soc,
+    value_fn=lambda d: d.secctrl.very_low_soc,
 )
 
 
@@ -72,7 +72,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     rt = entry.runtime_data
-    if rt.cloud is None:
+    if rt.cloud is None or rt.fast is None:
         return
     envoy = envoy_device(rt.serial, rt.firmware)
     async_add_entities([VeryLowSocNumber(rt.fast, rt.cloud, VERY_LOW_SOC, envoy, rt.serial)])

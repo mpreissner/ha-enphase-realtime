@@ -18,6 +18,7 @@ from custom_components.enphase_realtime.const import (
     CONF_FAST_INTERVAL,
     CONF_HAS_BATTERY,
     CONF_HAS_ENPOWER,
+    CONF_LIVE_INTERVAL,
     CONF_PHASE_LAYOUT,
     CONF_SERIAL,
     CONF_SITE_ID,
@@ -196,8 +197,9 @@ async def test_options(hass: HomeAssistant, config_entry: MockConfigEntry) -> No
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
+            CONF_LIVE_INTERVAL: 2.0,
             CONF_FAST_INTERVAL: 10.0,
-            CONF_STREAM_INTERVAL: 2.0,
+            CONF_STREAM_INTERVAL: 0.0,
             CONF_CLOUD_INTERVAL: 600.0,
             CONF_ENABLE_STREAM: False,
             CONF_COUNTRY: "AU",
@@ -206,8 +208,9 @@ async def test_options(hass: HomeAssistant, config_entry: MockConfigEntry) -> No
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert config_entry.options == {
+        CONF_LIVE_INTERVAL: 2,
         CONF_FAST_INTERVAL: 10,
-        CONF_STREAM_INTERVAL: 2,
+        CONF_STREAM_INTERVAL: 0,
         CONF_CLOUD_INTERVAL: 600,
         CONF_ENABLE_STREAM: False,
         CONF_COUNTRY: "AU",

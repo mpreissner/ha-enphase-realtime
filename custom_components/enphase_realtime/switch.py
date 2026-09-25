@@ -13,7 +13,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import EnphaseConfigEntry
 from .const import CONF_COUNTRY
-from .control import CloudControl, schedule
+from .control import CloudControl
 from .coordinator import CloudCoordinator, FastCoordinator
 from .enlighten_client.battery import BatteryConfigClient
 from .enlighten_client.models import charge_from_grid_available
@@ -33,7 +33,7 @@ CHARGE_FROM_GRID = EnphaseSwitchDescription(
     key="allow_charge_from_grid",
     name="Charge from grid",
     icon="mdi:transmission-tower-import",
-    value_fn=lambda d: schedule(d).charge_from_grid_allowed,
+    value_fn=lambda d: d.schedule.charge_from_grid_allowed,
 )
 
 
@@ -106,7 +106,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     rt = entry.runtime_data
-    if rt.cloud is None:
+    if rt.cloud is None or rt.fast is None:
         return
     site = rt.cloud.site
     if site is None:

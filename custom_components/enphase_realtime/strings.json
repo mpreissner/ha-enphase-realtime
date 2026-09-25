@@ -57,16 +57,18 @@
       "init": {
         "title": "Enphase Realtime options",
         "data": {
-          "fast_interval": "Local poll interval",
-          "stream_interval": "Stream update interval",
+          "live_interval": "Live poll interval",
+          "fast_interval": "Battery poll interval",
+          "stream_interval": "Stream write interval",
           "cloud_interval": "Cloud poll interval",
           "enable_stream": "Use the real-time meter stream",
           "country": "Country",
           "time_zone": "Time zone"
         },
         "data_description": {
-          "fast_interval": "How often to read live power, battery and grid status from the Envoy.",
-          "stream_interval": "Stream readings arrive about every second; this is how often entities are updated from them.",
+          "live_interval": "How often to read battery, grid, load and PV power and the grid relay from the Envoy.",
+          "fast_interval": "How often to read battery charge, energy and mode from the Envoy.",
+          "stream_interval": "Stream readings arrive about every second. 0 updates entities with every reading; a higher value updates them at most that often, which writes less to the recorder.",
           "cloud_interval": "How often to read battery settings from Enphase's servers."
         }
       }

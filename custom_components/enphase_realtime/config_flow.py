@@ -35,6 +35,7 @@ from .const import (
     CONF_FIRMWARE,
     CONF_HAS_BATTERY,
     CONF_HAS_ENPOWER,
+    CONF_LIVE_INTERVAL,
     CONF_PHASE_LAYOUT,
     CONF_SERIAL,
     CONF_SITE_ID,
@@ -45,6 +46,7 @@ from .const import (
     DEFAULT_ENABLE_STREAM,
     DEFAULT_FAST_INTERVAL,
     DEFAULT_HOST,
+    DEFAULT_LIVE_INTERVAL,
     DEFAULT_STREAM_INTERVAL,
     DOMAIN,
     MIN_FIRMWARE_MAJOR,
@@ -55,7 +57,7 @@ from .enlighten_client.errors import EnlightenAuthError, EnlightenError
 from .enlighten_client.models import SiteSettings
 from .enlighten_client.session import EnlightenSession
 from .envoy_client.errors import EnvoyAuthError, EnvoyError
-from .envoy_client.local import EnvoyClient
+from .envoy_client.local import FAST_TIMEOUT, EnvoyClient
 from .envoy_client.models import Inventory, PhaseLayout, detect_phase_layout
 
 _LOGGER = logging.getLogger(__name__)
@@ -153,7 +155,7 @@ async def _inspect_site(
     """Steps 5 and 6: layout, hardware and a read from each side."""
     probe.site_id = site_id
     try:
-        livedata = await envoy.livedata()
+        livedata = await envoy.livedata(FAST_TIMEOUT)
         meters = await envoy.meters()
     except EnvoyAuthError as err:
         raise FlowError("invalid_auth") from err
@@ -454,6 +456,7 @@ class EnphaseRealtimeOptionsFlow(OptionsFlow):
             return self.async_create_entry(
                 data={
                     **user_input,
+                    CONF_LIVE_INTERVAL: int(user_input[CONF_LIVE_INTERVAL]),
                     CONF_FAST_INTERVAL: int(user_input[CONF_FAST_INTERVAL]),
                     CONF_STREAM_INTERVAL: int(user_input[CONF_STREAM_INTERVAL]),
                     CONF_CLOUD_INTERVAL: int(user_input[CONF_CLOUD_INTERVAL]),
@@ -466,8 +469,9 @@ class EnphaseRealtimeOptionsFlow(OptionsFlow):
             data_schema=self.add_suggested_values_to_schema(
                 vol.Schema(
                     {
+                        vol.Required(CONF_LIVE_INTERVAL): _interval(1, 60),
                         vol.Required(CONF_FAST_INTERVAL): _interval(2, 60),
-                        vol.Required(CONF_STREAM_INTERVAL): _interval(1, 60),
+                        vol.Required(CONF_STREAM_INTERVAL): _interval(0, 60),
                         vol.Required(CONF_CLOUD_INTERVAL): _interval(60, 3600),
                         vol.Required(CONF_ENABLE_STREAM): bool,
                         vol.Required(CONF_COUNTRY): CountrySelector(),
@@ -475,6 +479,7 @@ class EnphaseRealtimeOptionsFlow(OptionsFlow):
                     }
                 ),
                 {
+                    CONF_LIVE_INTERVAL: options.get(CONF_LIVE_INTERVAL, DEFAULT_LIVE_INTERVAL),
                     CONF_FAST_INTERVAL: options.get(CONF_FAST_INTERVAL, DEFAULT_FAST_INTERVAL),
                     CONF_STREAM_INTERVAL: options.get(
                         CONF_STREAM_INTERVAL, DEFAULT_STREAM_INTERVAL

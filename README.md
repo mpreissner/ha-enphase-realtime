@@ -3,9 +3,10 @@
 A replacement for the Home Assistant core Enphase Envoy integration, built for IQ System
 Controller and IQ Battery sites.
 
-- **Real-time telemetry.** Meter data is streamed at about 1 Hz from `/stream/meter`. Power,
-  battery and controller state are polled every few seconds from the Envoy's fast `/ivp/*`
-  endpoints. Nothing is read from the slow legacy pages.
+- **Real-time telemetry.** Meter data is streamed at about 1 Hz from `/stream/meter`, and grid,
+  load, PV and battery power and the grid relay are polled every second from the Envoy's fast
+  `/ivp/*` endpoints. Battery and controller state are polled every few seconds. Nothing is
+  read from the slow legacy pages.
 - **Local control** for the settings the Envoy accepts locally.
 - **Cloud control** for the settings it doesn't, such as the battery's charge-from-grid and
   reserve. Every cloud write is confirmed from the local Envoy values, because the cloud only
@@ -13,5 +14,41 @@ Controller and IQ Battery sites.
 
 See [docs/specs/core-integration.md](docs/specs/core-integration.md) for the design and
 [docs/FINDINGS.md](docs/FINDINGS.md) for the protocol notes.
+
+## Update rates and the recorder
+
+By default the power sensors update about once a second, so that automations such as load
+shedding can react quickly. Two options set the rates (**Settings → Devices & services →
+Enphase Realtime → Configure**):
+
+- **Live poll interval** (1–60 s, default 1): grid, load, PV and battery power, and grid status.
+- **Stream write interval** (0–60 s, default 0): how often the streamed meter readings are
+  written. 0 writes every frame (about 1 Hz).
+
+If you only want these values for dashboards and the energy panel, set both to 5.
+
+At 1 s the recorder stores tens of thousands of rows per entity per day. If you keep the fast
+rates but don't need their history at full resolution, leave these entities out of the
+recorder. Replace `<serial>` with your Envoy's serial number:
+
+```yaml
+recorder:
+  exclude:
+    entity_globs:
+      - sensor.envoy_<serial>_*_power
+      - sensor.envoy_<serial>_*_power_*
+      - sensor.envoy_<serial>_*_current_*
+      - sensor.envoy_<serial>_*_power_factor_*
+      - sensor.envoy_<serial>_voltage*
+      - sensor.envoy_<serial>_frequency
+```
+
+The energy panel reads the lifetime energy sensors, which update slowly and aren't excluded.
+
+**Load shedding and the battery's own protection.** A 1 s update still has to pass through
+Home Assistant, your automation and the switch or relay it drives. An IQ Battery can hit its
+overload limit faster than that. Treat automations as a way to avoid reaching the limit, not as
+overload protection: for loads that must never trip the battery, use hardware load control
+(the IQ System Controller's load-control relays, or a smart panel).
 
 **Status:** pre-alpha, not yet functional.
