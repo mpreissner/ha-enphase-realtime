@@ -1,6 +1,7 @@
 # Spec: Enphase Realtime core integration
 
-Status: draft, 2026-09-24 (revised the same day after a review of the captured samples)
+Status: draft, 2026-09-24 (revised the same day after a review of the captured samples;
+revised 2026-09-25 for 1 s telemetry, see 3.1 and 3.2)
 Protocol evidence: [../FINDINGS.md](../FINDINGS.md)
 
 ## 1. Goal
@@ -8,8 +9,13 @@ Protocol evidence: [../FINDINGS.md](../FINDINGS.md)
 Replace the Home Assistant core `enphase_envoy` integration on an IQ System Controller and IQ
 Battery site with one integration that:
 
-1. **Streams real-time telemetry.** Readings arrive at about 1 Hz, or every few seconds,
-   instead of the core integration's 60 s poll through slow legacy endpoints.
+1. **Streams real-time telemetry.** Power, battery flow and grid state reach Home Assistant
+   about once a second, instead of the core integration's 60 s poll through slow legacy
+   endpoints. One second is the target, not a nicety: the reference site sheds circuits with
+   HA automations when the grid drops or the battery nears its output limit, and a 5 s view
+   is long enough for an IQ Battery to overload and trip. This matches what
+   `enphase-envoy-mqtt-json` delivers today (it polls `livedata` about every 0.6 s plus the
+   request time).
 2. **Controls locally what the Envoy accepts locally.** That covers the grid relay, and later
    the dry contacts.
 3. **Controls through the Enlighten cloud what the Envoy ignores locally.** That covers the
@@ -35,6 +41,10 @@ such.
 - Configuring generators.
 - Supporting the legacy Envoy-S (firmware below 7) or envoys without an owner-token flow.
 - Getting the brand into home-assistant/brands.
+- **Protecting the battery.** 1 s telemetry makes HA-side load shedding practical, but an
+  automation still acts a second or two after the event (poll, trigger, switching the load).
+  The IQ Battery's own overload trip may be faster. The README says so, and points at
+  hardware load control for anything that must never trip.
 
 ## 2. Why the core integration isn't enough
 
@@ -83,8 +93,9 @@ custom_components/enphase_realtime/
 
 | Coordinator | Source | Default cadence | Feeds |
 |---|---|---|---|
-| `StreamCoordinator` | `GET /stream/meter` (server push, `data: {json}` lines, about 1 Hz) | push; entity writes throttled, see 3.2 | Production, net-consumption and total-consumption power per phase; voltage, current, PF, frequency |
-| `FastCoordinator` | `/ivp/livedata/status`, `/ivp/ensemble/secctrl`, `/ivp/sc/sched`, `/ivp/ensemble/relay` | 5 s (options: 2–60) | Battery, grid, load and PV power; SoC; controller mode; charge-from-grid in effect; reserve (`VLS_Limit`); relay states; grid presence |
+| `StreamCoordinator` | `GET /stream/meter` (server push, `data: {json}` lines, about 1 Hz) | every frame as it arrives (option: throttle to one write per 1–60 s, see 3.2) | Production, net-consumption and total-consumption power per phase; voltage, current, PF, frequency |
+| `LiveCoordinator` | `/ivp/livedata/status`, and `/ivp/ensemble/relay` on sites with a System Controller | 1 s (options: 1–60) | Battery, grid, load and PV power; relay states; grid status and grid outage |
+| `FastCoordinator` | `/ivp/ensemble/secctrl`, `/ivp/sc/sched` (sites with a battery; not created otherwise) | 5 s (options: 2–60) | SoC; available energy; controller mode; charge-from-grid in effect; battery shutdown level (`VLS_Limit`); local confirmation of cloud writes (6.1) |
 | `SlowCoordinator` | `/ivp/meters`, `/ivp/meters/readings`, `/ivp/meters/reports`, `/ivp/ensemble/inventory`, `/ivp/ss/dry_contact_settings`, `/ivp/ensemble/dry_contacts`, `/api/v1/production/inverters` | 60 s | Meter layout (phase check, 3.3), lifetime energy counters, battery and System Controller health, dry-contact state, per-micro watts |
 | `CloudCoordinator` | `GET batterySettings/{site}` | 300 s, plus an immediate refresh after each write | Profile (storage mode), backup %, charge-from-grid, `veryLowSoc` and their limits, `pendingGateways` |
 
@@ -100,18 +111,58 @@ the task reconnects with backoff (1 s up to 60 s). While it is down, stream enti
 unavailable after 30 s, and the fast poll keeps working. If the stream endpoint returns 401 or
 404, stream entities are not created, and power values fall back to `livedata`.
 
+**Live poll.** Battery power exists only in `livedata` (the stream has no storage meter), and
+the relay only in `ensemble/relay`, so those two are what the 1 s poll carries. Everything that
+changes slowly (SoC, energy, mode) stays on the fast poll, to keep the Envoy's request rate
+near what `enphase-envoy-mqtt-json` already runs at without trouble (about 1.5 requests a
+second, plus the stream).
+
+- **No overlap.** HA's coordinator schedules the next refresh after the previous one ends, so a
+  slow Envoy stretches the interval instead of stacking requests. The live requests time out
+  after 3 s (7).
+- **Unchanged data isn't written.** The coordinator runs with `always_update=False`; the parsed
+  dataclasses compare by value, so an idle second writes no state.
+- **Short failures don't flap.** At 1 Hz an occasional failed request is normal. The live
+  entities go unavailable only after 3 consecutive failures; until then they keep the last
+  good values. `last_update_success` still reports each failure for diagnostics.
+- **`sc_stream`.** `livedata` has `connection.sc_stream`. When it is `disabled`, the System
+  Controller isn't pushing fresh values to the Envoy, and the power figures may lag. If a poll
+  sees `disabled`, the coordinator sends `POST /ivp/livedata/stream {"enable": 1}` (what the
+  Enphase app's live view and `enphase-envoy-mqtt-json` both send), at most once a minute, and
+  logs it at debug. Whether it switches itself back off, and how stale `livedata` gets
+  without it, is spike S10. This POST changes a telemetry setting, not the system's behaviour,
+  so it isn't a control (6.4).
+
 **Never polled:** `production.json`, `inventory.json` and `home.json`.
 
 ### 3.2 Recorder load
 
-At 1 Hz, about 20 stream entities write roughly 1.7M rows a day. Defaults:
+Real time wins by default; the recorder cost is managed by what is enabled, not by slowing
+the data down. At 1 Hz, each enabled entity whose value changes every second writes about
+86,400 rows a day. On a split-phase site the entities enabled by default and updated each
+second are:
 
-- Stream entities write state at most once every `stream_interval` seconds. The default is 5;
-  the options allow 1–60. The coordinator keeps the latest frame, and the entity writes it when
-  the throttle window closes.
-- Per-phase voltage, current, PF, Q and S, and all `sc/status` diagnostics, are **disabled by
-  default** (`entity_registry_enabled_default=False`).
-- The README recommends a `recorder: exclude` block for anyone who turns on a 1 s interval.
+- stream: production, consumption and net power, as totals and per phase (9);
+- live: battery, grid, load and PV power (4).
+
+That is about 1.1M rows a day, which the default SQLite recorder handles but which grows the
+database. The rest of the design:
+
+- **Stream writes.** `stream_interval` is 0–60 s, **default 0**: every frame is written as it
+  arrives. Above 0 it is a leading-edge throttle: a frame that arrives at least
+  `stream_interval` after the last write is written at once, and frames in between are
+  dropped. Written values are therefore never older than the frame that carried them. (The
+  previous design wrote the newest frame on a timer, which added up to one interval of delay.)
+  The timer stays only to mark the stream stale after 30 s without a frame.
+- **Live writes.** Set by `live_interval`; unchanged values aren't written (3.1).
+- Per-phase voltage, current, PF, Q and S, the `livedata` per-phase fallbacks, and all
+  `sc/status` diagnostics, are **disabled by default** (`entity_registry_enabled_default=False`).
+- The README gives a `recorder: exclude` block for the 1 s power entities, for anyone who wants
+  them for automations but not in history, and suggests `stream_interval`/`live_interval` of 5
+  for anyone who doesn't need 1 s at all.
+- **Existing entries.** Options saved before this change keep their stored values (a
+  `stream_interval` of 5 stays 5). The integration is unreleased, so there is no migration;
+  the one installation updates its options by hand.
 
 ### 3.3 Site configuration: phases, region and hardware
 
@@ -251,9 +302,10 @@ discarded.
 
 ### 4.3 Options
 
-- `fast_interval`
-- `stream_interval`
-- `cloud_interval`
+- `live_interval` (default 1 s, 1–60)
+- `fast_interval` (default 5 s, 2–60)
+- `stream_interval` (default 0 = every frame, 0–60; see 3.2)
+- `cloud_interval` (default 300 s, 60–3600)
 - `enable_stream` (default on)
 - `allow_grid_relay_control` (default **off**, see 6.3)
 - `country` and `time_zone` (prefilled as in 3.3)
@@ -272,7 +324,7 @@ with `via_device_id`, its device registry ID.
 
 **Unique IDs:** `<serial>_<key>`.
 
-Source key: **S** = stream, **F** = fast, **L** = slow, **C** = cloud.
+Source key: **S** = stream, **R** = live (1 s), **F** = fast, **L** = slow, **C** = cloud.
 
 ### 5.1 Power (real time)
 
@@ -281,10 +333,10 @@ Source key: **S** = stream, **F** = fast, **L** = slow, **C** = cloud.
 | Production power, total and per phase | S `production` | `current_power_production`, `production_ct_power` |
 | Consumption power, total and per phase | S `total-consumption` | `current_power_consumption` |
 | Net power, total and per phase (positive = import) | S `net-consumption` | `current_net_power_consumption` |
-| Battery power (positive = discharge) | F `livedata.meters.storage.agg_p_mw` / 1000, raw sign (livedata balances as load = grid + pv + storage, so positive already means discharging) | `current_battery_discharge` |
-| Grid power | F `meters.grid.agg_p_mw` / 1000 | – (new) |
-| Load power | F `meters.load.agg_p_mw` / 1000 | – (new) |
-| PV power (livedata) | F `meters.pv.agg_p_mw` / 1000 | – (new; this is the fallback when the stream is off) |
+| Battery power (positive = discharge) | R `livedata.meters.storage.agg_p_mw` / 1000, raw sign (livedata balances as load = grid + pv + storage, so positive already means discharging) | `current_battery_discharge` |
+| Grid power | R `meters.grid.agg_p_mw` / 1000 | – (new) |
+| Load power | R `meters.load.agg_p_mw` / 1000 | – (new) |
+| PV power (livedata) | R `meters.pv.agg_p_mw` / 1000 | – (new; this is the fallback when the stream is off) |
 | Voltage, current, PF, frequency per phase | S | – (new, disabled by default) |
 | L1–L2 voltage (split-phase only) | S `v_a + v_b` | – (new, disabled by default) |
 
@@ -357,9 +409,9 @@ nothing is pending, and it isn't a parse error.
 
 | Entity | Source | Core equivalent |
 |---|---|---|
-| Grid status: on when the relay is actually closed | F `relay.mains_oper_state == "closed"` | `enpower_grid_status` |
-| Grid enabled switch | F `mains_admin_state`; write in 6.3 | `enpower_grid_enabled` |
-| Grid outage (binary, problem class): on when admin is closed but oper is open | F derived | – (new; this is the signature the existing HA automation already relies on) |
+| Grid status: on when the relay is actually closed | R `relay.mains_oper_state == "closed"` | `enpower_grid_status` |
+| Grid enabled switch | R `mains_admin_state`; write in 6.3 | `enpower_grid_enabled` |
+| Grid outage (binary, problem class): on when admin is closed but oper is open | R derived | – (new; this is the signature the existing HA automation already relies on) |
 
 ### 5.5 Microinverters
 
@@ -439,6 +491,9 @@ in `backup_only` even though `cfgControl.show` is true, so visibility must not r
 `/admin/lib/tariff` is not used for anything. It has no effect on the controller (FINDINGS), and
 writing to it only makes the stale file drift further from the cloud.
 
+The one local POST outside 6.3 is the `sc_stream` enable (3.1). It asks the System Controller
+to keep `livedata` fresh and changes nothing the system does.
+
 ## 7. Errors and availability
 
 - A coordinator failure makes only that coordinator's entities unavailable. A cloud outage never
@@ -446,10 +501,12 @@ writing to it only makes the stale file drift further from the cloud.
 - Cloud-backed controls go unavailable when the CloudCoordinator fails. Their confirmation binary
   sensors still come from the local values.
 - Timeouts:
-  - `/ivp/*`: 10 s each
+  - `/ivp/livedata/status` and `/ivp/ensemble/relay` on the live poll: 3 s
+  - other `/ivp/*`: 10 s each
   - `/ivp/meters/readings` and `/ivp/meters/reports`: 20 s
   - cloud calls: 30 s
-- The fast and slow endpoints are fetched in parallel within their tick (`asyncio.gather`).
+- The live, fast and slow endpoints are fetched in parallel within their tick (`asyncio.gather`).
+- Live entities go unavailable only after 3 consecutive failed polls (3.1).
 - `diagnostics.py` redacts the token, cookies, email (including `siteSettings`
   `ownerOrHostMaskedEmail`), `site_id`, `user_id`, every serial, `euaid`, the zip code and
   site titles. It includes the detected phase layout, region and hardware (3.3), plus the raw
@@ -490,7 +547,10 @@ Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`.
    a few days and the values agree.
 3. **Battery control.** Charge-from-grid switch and very-low SoC number, with local
    confirmation. The backup-reserve number once S3 passes.
-4. **Grid relay control** (once S4 passes) and a migration guide:
+4. **1 s telemetry.** `LiveCoordinator`, the stream write change and the new defaults (3.1,
+   3.2), the `sc_stream` enable, and the README recorder guidance. **Done when** S10 is
+   settled and a day at 1 s shows no Envoy errors or timeouts beyond the occasional miss.
+5. **Grid relay control** (once S4 passes) and a migration guide:
    - disable the core integration
    - rename entity IDs to keep automations and history
    - repoint automations that use the core grid-status entities (on the reference site,
@@ -509,3 +569,4 @@ Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`.
 | S7 | Is it worth adding the `mqttSignedUrl` AWS IoT stream as a push source for cloud state (to replace the 300 s poll)? | Revisit after phase 3 |
 | S8 | Outside the US: do the same Enlighten and Entrez hosts work, which charge-from-grid disclaimer type (if any) is needed, and what do `showChargeFromGrid` and `restrictCfg` look like? | Needs a non-US tester. Until then, the conservative gating in 3.3 applies |
 | S9 | What do single-phase and three-phase sites send for `phaseMode`, `phase_count`, `is_split_phase`, stream frames and `livedata` per-phase fields? What temperature unit do other System Controller models report? | Diagnostics dumps from users (3.3). Add each as a fixture under `tests/fixtures/<layout>/` |
+| S10 | At 1 s: does `livedata` `meters.last_update` advance every second, and does it slow down when `sc_stream` is `disabled`? Does `sc_stream` switch itself off after a while, and how often? Does the Envoy (D8.3.6086) stay responsive at ~2 requests a second plus the stream? Also: does `livedata` `main_relay_state` track `mains_oper_state`? If so it could replace the relay request on the live poll | Log `last_update`, `sc_stream` and request latency for a day with the MQTT add-on stopped (it enables `sc_stream` itself, which would hide the answer). Read-only except the enable POST |
