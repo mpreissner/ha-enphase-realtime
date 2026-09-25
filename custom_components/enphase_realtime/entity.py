@@ -9,6 +9,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
 
 from .const import DOMAIN
+from .coordinator import LiveCoordinator
 
 MANUFACTURER = "Enphase"
 
@@ -72,7 +73,12 @@ class EnphaseEntity[DataT](CoordinatorEntity[DataUpdateCoordinator[DataT]]):
 
     @property
     def available(self) -> bool:
-        return super().available and self._value()[0]
+        if isinstance(self.coordinator, LiveCoordinator):
+            # Rides out a short run of failed polls (spec 3.1).
+            ok = self.coordinator.entities_available
+        else:
+            ok = super().available
+        return ok and self._value()[0]
 
 
 def by_serial[T](items: list[T], serial: str) -> T:

@@ -16,6 +16,7 @@ CONF_HAS_BATTERY = "has_battery"
 CONF_HAS_ENPOWER = "has_enpower"
 
 # --- Options (spec 4.3) ---------------------------------------------------------------------------
+CONF_LIVE_INTERVAL = "live_interval"
 CONF_FAST_INTERVAL = "fast_interval"
 CONF_STREAM_INTERVAL = "stream_interval"
 CONF_CLOUD_INTERVAL = "cloud_interval"
@@ -24,14 +25,25 @@ CONF_COUNTRY = "country"
 CONF_TIME_ZONE = "time_zone"
 
 DEFAULT_HOST = "envoy.local"
+DEFAULT_LIVE_INTERVAL = 1
 DEFAULT_FAST_INTERVAL = 5
-DEFAULT_STREAM_INTERVAL = 5
+# 0 writes every stream frame (spec 3.2).
+DEFAULT_STREAM_INTERVAL = 0
 DEFAULT_CLOUD_INTERVAL = 300
 DEFAULT_ENABLE_STREAM = True
 
 SLOW_INTERVAL = timedelta(seconds=60)
 # Stream entities go unavailable after this long without a frame (spec 3.1).
 STREAM_STALE_AFTER = timedelta(seconds=30)
+# How often the stream is checked for going stale.
+STREAM_STALE_CHECK = timedelta(seconds=5)
+# Frames arrive about once a second with some jitter; a throttle of N s shouldn't drop the frame
+# that turns up a moment early (spec 3.2).
+STREAM_THROTTLE_SLACK = timedelta(milliseconds=200)
+# Live entities stay available through this many failed polls in a row, less one (spec 3.1).
+LIVE_FAILURES_BEFORE_UNAVAILABLE = 3
+# The `sc_stream` enable is sent at most this often (spec 3.1).
+SC_STREAM_ENABLE_COOLDOWN = timedelta(seconds=60)
 # How long setup waits for the first stream frame before creating stream entities anyway.
 STREAM_PROBE_TIMEOUT = 15.0
 # Renew the owner token this long before it expires (spec 4.2).

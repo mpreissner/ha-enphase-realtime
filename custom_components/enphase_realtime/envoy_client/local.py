@@ -31,6 +31,8 @@ from .stream import StreamDecoder
 TokenRefresher = Callable[[], Awaitable[str]]
 
 FAST_TIMEOUT = aiohttp.ClientTimeout(total=10)
+# The 1 s live poll gives up quickly; the next poll is a second away (spec 7).
+LIVE_TIMEOUT = aiohttp.ClientTimeout(total=3)
 # Readings and reports walk every meter channel and are slower on a busy Envoy.
 SLOW_TIMEOUT = aiohttp.ClientTimeout(total=20)
 # The stream sends a frame about once a second; 30 s of silence means it's dead (spec 3.1).
@@ -77,10 +79,23 @@ class EnvoyClient:
 
     async def get_json(self, path: str, timeout: aiohttp.ClientTimeout = FAST_TIMEOUT) -> Any:
         """GET an authenticated endpoint and return its decoded JSON body."""
+        payload = await self._request_json("GET", path, timeout)
+        self.last_payloads[path] = payload
+        return payload
+
+    async def post_json(
+        self, path: str, body: Any, timeout: aiohttp.ClientTimeout = FAST_TIMEOUT
+    ) -> Any:
+        """POST a JSON body to an authenticated endpoint and return its decoded JSON reply."""
+        return await self._request_json("POST", path, timeout, body)
+
+    async def _request_json(
+        self, method: str, path: str, timeout: aiohttp.ClientTimeout, body: Any = None
+    ) -> Any:
         for attempt in range(2):
             try:
-                async with self._session.get(
-                    self._base + path, headers=self._headers(), timeout=timeout
+                async with self._session.request(
+                    method, self._base + path, headers=self._headers(), json=body, timeout=timeout
                 ) as resp:
                     if resp.status == 401 and attempt == 0 and await self._renew_token():
                         continue
@@ -94,7 +109,6 @@ class EnvoyClient:
                         raise EnvoyParseError(f"{path}: body isn't JSON") from err
             except (aiohttp.ClientError, TimeoutError) as err:
                 raise EnvoyConnectionError(f"{path}: {err!r}") from err
-            self.last_payloads[path] = payload
             return payload
         raise AssertionError("unreachable")  # pragma: no cover
 
@@ -112,19 +126,26 @@ class EnvoyClient:
         self.last_payloads["/info"] = text
         return EnvoyInfo.from_xml(text)
 
-    # --- fast tick ------------------------------------------------------------------------------
+    # --- live tick ------------------------------------------------------------------------------
 
-    async def livedata(self) -> LiveData:
-        return LiveData.from_payload(await self.get_json("/ivp/livedata/status"))
+    async def livedata(self, timeout: aiohttp.ClientTimeout = LIVE_TIMEOUT) -> LiveData:
+        return LiveData.from_payload(await self.get_json("/ivp/livedata/status", timeout))
+
+    async def relay(self) -> Relay:
+        return Relay.from_payload(await self.get_json("/ivp/ensemble/relay", LIVE_TIMEOUT))
+
+    async def enable_livedata_stream(self) -> None:
+        """Ask the System Controller to keep `livedata` fresh (`sc_stream`, spec 3.1). The
+        reply isn't used."""
+        await self.post_json("/ivp/livedata/stream", {"enable": 1}, LIVE_TIMEOUT)
+
+    # --- fast tick ------------------------------------------------------------------------------
 
     async def secctrl(self) -> SecCtrl:
         return SecCtrl.from_payload(await self.get_json("/ivp/ensemble/secctrl"))
 
     async def schedule(self) -> Schedule:
         return Schedule.from_payload(await self.get_json("/ivp/sc/sched"))
-
-    async def relay(self) -> Relay:
-        return Relay.from_payload(await self.get_json("/ivp/ensemble/relay"))
 
     # --- slow tick ------------------------------------------------------------------------------
 

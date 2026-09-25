@@ -88,6 +88,7 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     rt = entry.runtime_data
     coordinators = {
+        "live": rt.live,
         "fast": rt.fast,
         "slow": rt.slow,
         "cloud": rt.cloud,

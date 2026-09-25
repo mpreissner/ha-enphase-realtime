@@ -236,6 +236,8 @@ class LiveData:
     pv: LivePower | None
     storage: LivePower | None
     generator: LivePower | None
+    # `connection.sc_stream`: "enabled" while the System Controller pushes fresh values.
+    sc_stream: str | None = None
 
     @classmethod
     def from_payload(cls, data: Any) -> LiveData:
@@ -256,6 +258,7 @@ class LiveData:
                 pv=power("pv"),
                 storage=power("storage"),
                 generator=power("generator"),
+                sc_stream=(data.get("connection") or {}).get("sc_stream"),
             )
 
 

@@ -28,7 +28,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from . import EnphaseConfigEntry
 from .const import BATTERY_TEMPERATURE_UNIT, ENPOWER_TEMPERATURE_UNIT, PHASE_NAMES
-from .coordinator import FastData, SlowData
+from .coordinator import FastData, LiveFeed, SlowData
 from .entity import EnphaseEntity, by_serial, child_device, envoy_device
 from .envoy_client.models import LivePower, PhaseLayout, StreamFrame, StreamMeter
 
@@ -165,7 +165,7 @@ def _stream_sensors(layout: PhaseLayout) -> list[EnphaseSensorDescription]:
     return out
 
 
-# --- Fast (5.1, 5.3) ----------------------------------------------------------------------------
+# --- Live (5.1) ---------------------------------------------------------------------------------
 
 # LiveData attribute, unique-ID key, name.
 _LIVE_METERS = (
@@ -175,11 +175,11 @@ _LIVE_METERS = (
 )
 
 
-def _live(attr: str) -> Callable[[FastData], LivePower]:
+def _live(attr: str) -> Callable[[LiveFeed], LivePower]:
     return lambda d: _required(getattr(d.livedata, attr), attr)
 
 
-def _fast_sensors(
+def _live_sensors(
     layout: PhaseLayout, has_battery: bool, stream_on: bool
 ) -> list[EnphaseSensorDescription]:
     out: list[EnphaseSensorDescription] = []
@@ -198,19 +198,17 @@ def _fast_sensors(
                     entity_registry_enabled_default=False,
                 )
             )
-    if not has_battery:
-        return out
+    if has_battery:
+        storage = _live("storage")
+        # Raw Envoy sign: positive is discharging (spec 5.1).
+        out.append(_power("battery_power", "Battery power", lambda d: storage(d).power))
+    return out
 
-    storage = _live("storage")
-    # Raw Envoy sign: positive is discharging (spec 5.1).
-    out.append(_power("battery_power", "Battery power", lambda d: storage(d).power))
 
-    def secctrl(d: FastData):
-        return _required(d.secctrl, "secctrl")
+# --- Fast (5.3) ---------------------------------------------------------------------------------
 
-    def schedule(d: FastData):
-        return _required(d.schedule, "schedule")
 
+def _fast_sensors() -> list[EnphaseSensorDescription]:
     def energy(
         key: str, name: str, value_fn: Callable[[FastData], Any]
     ) -> EnphaseSensorDescription:
@@ -233,42 +231,41 @@ def _fast_sensors(
             **kw,
         )
 
-    out += [
+    return [
         percent(
             "battery_soc",
             "Battery",
-            lambda d: secctrl(d).soc,
+            lambda d: d.secctrl.soc,
             device_class=SensorDeviceClass.BATTERY,
         ),
         energy(
             "available_battery_energy",
             "Available battery energy",
-            lambda d: secctrl(d).available_energy,
+            lambda d: d.secctrl.available_energy,
         ),
-        energy("battery_capacity", "Battery capacity", lambda d: secctrl(d).max_energy),
+        energy("battery_capacity", "Battery capacity", lambda d: d.secctrl.max_energy),
         energy(
-            "reserve_battery_energy", "Reserve battery energy", lambda d: schedule(d).reserve_energy
+            "reserve_battery_energy", "Reserve battery energy", lambda d: d.schedule.reserve_energy
         ),
         # The unique ID predates the name the Enphase app uses.
         percent(
-            "reserve_battery_level", "Battery shutdown level", lambda d: secctrl(d).very_low_soc
+            "reserve_battery_level", "Battery shutdown level", lambda d: d.secctrl.very_low_soc
         ),
         percent(
-            "backup_soc_target", "Backup SoC target", lambda d: secctrl(d).configured_backup_soc
+            "backup_soc_target", "Backup SoC target", lambda d: d.secctrl.configured_backup_soc
         ),
         percent(
             "battery_state_of_health",
             "Battery state of health",
-            lambda d: secctrl(d).state_of_health,
+            lambda d: d.secctrl.state_of_health,
         ),
         # A plain string: an enum would break on a mode code we haven't seen.
         EnphaseSensorDescription(
             key="controller_mode",
             name="Controller mode",
-            value_fn=lambda d: schedule(d).mode,
+            value_fn=lambda d: d.schedule.mode,
         ),
     ]
-    return out
 
 
 # --- Slow (5.2, 5.3, 5.5, 5.6) ------------------------------------------------------------------
@@ -452,11 +449,13 @@ async def async_setup_entry(
     if rt.stream is not None:
         add(rt.stream, _stream_sensors(rt.phase_layout), envoy, rt.serial)
     add(
-        rt.fast,
-        _fast_sensors(rt.phase_layout, rt.hardware.has_battery, rt.stream is not None),
+        rt.live,
+        _live_sensors(rt.phase_layout, rt.hardware.has_battery, rt.stream is not None),
         envoy,
         rt.serial,
     )
+    if rt.fast is not None:
+        add(rt.fast, _fast_sensors(), envoy, rt.serial)
 
     slow = rt.slow.data
     add(rt.slow, _lifetime_sensors(slow), envoy, rt.serial)

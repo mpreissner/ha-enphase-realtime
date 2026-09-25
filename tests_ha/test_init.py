@@ -125,7 +125,7 @@ async def test_no_battery_skips_battery_endpoints(hass: HomeAssistant, fake: Fak
     await _setup(hass, entry)
     rt = entry.runtime_data
     assert rt.cloud is None
-    assert rt.fast.data.secctrl is None
+    assert rt.fast is None
     assert rt.slow.data.inventory is None
     assert _entity_id(hass, "sensor", "battery_soc") is None
     assert _entity_id(hass, "sensor", "grid_power") is not None

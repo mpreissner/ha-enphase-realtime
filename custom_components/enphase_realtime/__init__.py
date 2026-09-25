@@ -20,6 +20,7 @@ from .const import (
     CONF_FIRMWARE,
     CONF_HAS_BATTERY,
     CONF_HAS_ENPOWER,
+    CONF_LIVE_INTERVAL,
     CONF_PHASE_LAYOUT,
     CONF_SERIAL,
     CONF_SITE_ID,
@@ -27,6 +28,7 @@ from .const import (
     DEFAULT_CLOUD_INTERVAL,
     DEFAULT_ENABLE_STREAM,
     DEFAULT_FAST_INTERVAL,
+    DEFAULT_LIVE_INTERVAL,
     DEFAULT_STREAM_INTERVAL,
     STREAM_PROBE_TIMEOUT,
 )
@@ -34,6 +36,7 @@ from .coordinator import (
     CloudCoordinator,
     FastCoordinator,
     Hardware,
+    LiveCoordinator,
     SlowCoordinator,
     StreamCoordinator,
 )
@@ -64,7 +67,9 @@ class EnphaseData:
     hardware: Hardware
     client: EnvoyClient
     tokens: TokenKeeper
-    fast: FastCoordinator
+    live: LiveCoordinator
+    # None on sites without a battery.
+    fast: FastCoordinator | None
     slow: SlowCoordinator
     cloud: CloudCoordinator | None
     # None when the stream is off in the options or the Envoy won't serve it (spec 3.1).
@@ -94,16 +99,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
         with translate_errors("owner token"):
             client.set_token(await tokens.refresh())
 
-    fast = FastCoordinator(
+    live = LiveCoordinator(
         hass,
         entry,
         client,
         hardware,
-        timedelta(seconds=options.get(CONF_FAST_INTERVAL, DEFAULT_FAST_INTERVAL)),
+        timedelta(seconds=options.get(CONF_LIVE_INTERVAL, DEFAULT_LIVE_INTERVAL)),
     )
     slow = SlowCoordinator(hass, entry, client, hardware, tokens)
-    await fast.async_config_entry_first_refresh()
+    await live.async_config_entry_first_refresh()
     await slow.async_config_entry_first_refresh()
+    fast = None
+    if hardware.has_battery:
+        fast = FastCoordinator(
+            hass,
+            entry,
+            client,
+            timedelta(seconds=options.get(CONF_FAST_INTERVAL, DEFAULT_FAST_INTERVAL)),
+        )
+        await fast.async_config_entry_first_refresh()
 
     cloud_coordinator = None
     if hardware.has_battery:
@@ -147,6 +161,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
         hardware=hardware,
         client=client,
         tokens=tokens,
+        live=live,
         fast=fast,
         slow=slow,
         cloud=cloud_coordinator,

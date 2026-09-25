@@ -16,7 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import EnphaseConfigEntry
-from .coordinator import FastData, SlowData
+from .coordinator import LiveFeed, SlowData
 from .entity import EnphaseEntity, by_serial, child_device, envoy_device
 
 PARALLEL_UPDATES = 0
@@ -28,27 +28,21 @@ class EnphaseBinarySensorDescription(BinarySensorEntityDescription):
     attrs_fn: Callable[[Any], dict[str, Any] | None] | None = None
 
 
-def _relay(d: FastData):
+def _relay(d: LiveFeed):
     if d.relay is None:
         raise KeyError("relay")
     return d.relay
 
 
-def _schedule(d: FastData):
-    if d.schedule is None:
-        raise KeyError("schedule")
-    return d.schedule
-
-
-_BATTERY_FAST = (
+_FAST = (
     EnphaseBinarySensorDescription(
         key="charge_from_grid",
         name="Charge from grid in effect",
-        value_fn=lambda d: _schedule(d).charge_from_grid_allowed,
+        value_fn=lambda d: d.schedule.charge_from_grid_allowed,
     ),
 )
 
-_ENPOWER_FAST = (
+_ENPOWER_LIVE = (
     EnphaseBinarySensorDescription(
         key="grid_status",
         name="Grid status",
@@ -147,10 +141,10 @@ async def async_setup_entry(
     envoy = envoy_device(rt.serial, rt.firmware)
     entities: list[EnphaseBinarySensor] = []
 
-    if rt.hardware.has_battery:
-        entities += [EnphaseBinarySensor(rt.fast, d, envoy, rt.serial) for d in _BATTERY_FAST]
+    if rt.fast is not None:
+        entities += [EnphaseBinarySensor(rt.fast, d, envoy, rt.serial) for d in _FAST]
     if rt.hardware.has_enpower:
-        entities += [EnphaseBinarySensor(rt.fast, d, envoy, rt.serial) for d in _ENPOWER_FAST]
+        entities += [EnphaseBinarySensor(rt.live, d, envoy, rt.serial) for d in _ENPOWER_LIVE]
 
     slow = rt.slow.data
     contacts_device = envoy

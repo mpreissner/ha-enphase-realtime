@@ -31,9 +31,11 @@ class FakeEnvoy:
         self.valid = valid
         self.stream_status = 200
         self.seen_tokens: list[str | None] = []
+        self.posted: list[object] = []
         self.app = web.Application()
         self.app.router.add_get("/info", self.info)
         self.app.router.add_get("/ivp/livedata/status", self.livedata)
+        self.app.router.add_post("/ivp/livedata/stream", self.enable_stream)
         self.app.router.add_get("/ivp/meters/readings", self.garbage)
         self.app.router.add_get("/ivp/meters/reports", self.broken)
         self.app.router.add_get("/stream/meter", self.stream)
@@ -50,6 +52,12 @@ class FakeEnvoy:
         if not self._authorized(request):
             return web.Response(status=401)
         return web.json_response(load_json("ivp_livedata_status.json"))
+
+    async def enable_stream(self, request: web.Request) -> web.Response:
+        if not self._authorized(request):
+            return web.Response(status=401)
+        self.posted.append(await request.json())
+        return web.json_response({"sc_stream": "enabled"})
 
     async def garbage(self, request: web.Request) -> web.Response:
         return web.Response(text="<html>not json</html>", content_type="text/html")
@@ -112,6 +120,18 @@ async def test_401_renews_the_token_once_and_retries(http: aiohttp.ClientSession
     assert envoy.seen_tokens == ["stale", "fresh"]
     assert len(calls) == 1
     assert client.token == "fresh"
+
+
+async def test_enable_livedata_stream_posts_and_renews(http: aiohttp.ClientSession) -> None:
+    envoy = FakeEnvoy(valid="fresh")
+    calls: list[int] = []
+    async with serve(envoy.app) as url:
+        client = EnvoyClient(http, url, "stale", token_refresher=_refresher("fresh", calls))
+        await client.enable_livedata_stream()
+    assert envoy.posted == [{"enable": 1}]
+    assert envoy.seen_tokens == ["stale", "fresh"]
+    # A write's reply isn't a payload any entity reads.
+    assert client.last_payloads == {}
 
 
 async def test_401_after_renewal_is_an_auth_error(http: aiohttp.ClientSession) -> None:

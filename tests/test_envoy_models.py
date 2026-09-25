@@ -192,6 +192,13 @@ def test_livedata_converts_milliwatts() -> None:
     assert live.is_split_phase
     assert live.phase_count == 2
     assert live.last_update == datetime.fromtimestamp(1790257937, UTC)
+    assert live.sc_stream == "enabled"
+
+
+def test_livedata_without_connection_section() -> None:
+    payload = load_json("ivp_livedata_status.json")
+    del payload["connection"]
+    assert LiveData.from_payload(payload).sc_stream is None
 
 
 def test_livedata_missing_meters() -> None:

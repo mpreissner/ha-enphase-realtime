@@ -1,4 +1,4 @@
-"""The four coordinators of spec 3.1: stream (push), fast, slow and cloud."""
+"""The five coordinators of spec 3.1: stream (push), live, fast, slow and cloud."""
 
 from __future__ import annotations
 
@@ -14,7 +14,16 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .const import CONF_PHASE_LAYOUT, DOMAIN, SLOW_INTERVAL, STREAM_STALE_AFTER
+from .const import (
+    CONF_PHASE_LAYOUT,
+    DOMAIN,
+    LIVE_FAILURES_BEFORE_UNAVAILABLE,
+    SC_STREAM_ENABLE_COOLDOWN,
+    SLOW_INTERVAL,
+    STREAM_STALE_AFTER,
+    STREAM_STALE_CHECK,
+    STREAM_THROTTLE_SLACK,
+)
 from .credentials import TokenKeeper, translate_errors
 from .enlighten_client.battery import BatteryConfigClient
 from .enlighten_client.models import BatterySettings, SiteSettings
@@ -51,18 +60,19 @@ class Hardware:
     has_enpower: bool
 
 
-# --- Fast ---------------------------------------------------------------------------------------
+# --- Live ---------------------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
-class FastData:
+class LiveFeed:
     livedata: LiveData
-    secctrl: SecCtrl | None
-    schedule: Schedule | None
     relay: Relay | None
 
 
-class FastCoordinator(DataUpdateCoordinator[FastData]):
+class LiveCoordinator(DataUpdateCoordinator[LiveFeed]):
+    """The 1 s poll (spec 3.1). A short run of failed polls keeps the last good values: entities
+    ask `entities_available`, not `last_update_success`, which still records every failure."""
+
     def __init__(
         self,
         hass: HomeAssistant,
@@ -72,25 +82,91 @@ class FastCoordinator(DataUpdateCoordinator[FastData]):
         interval: timedelta,
     ) -> None:
         super().__init__(
-            hass, _LOGGER, config_entry=entry, name=f"{DOMAIN} fast", update_interval=interval
+            hass,
+            _LOGGER,
+            config_entry=entry,
+            name=f"{DOMAIN} live",
+            update_interval=interval,
+            always_update=False,
         )
         self.client = client
         self._hw = hardware
+        self.failed_polls = 0
+        self._enable_sent_at: datetime | None = None
 
-    async def _async_update_data(self) -> FastData:
-        c, hw = self.client, self._hw
+    @property
+    def entities_available(self) -> bool:
+        return self.data is not None and self.failed_polls < LIVE_FAILURES_BEFORE_UNAVAILABLE
+
+    async def _async_update_data(self) -> LiveFeed:
+        c = self.client
 
         async def none() -> None:
             return None
 
         with translate_errors("Envoy"):
-            livedata, secctrl, schedule, relay = await asyncio.gather(
-                c.livedata(),
-                c.secctrl() if hw.has_battery else none(),
-                c.schedule() if hw.has_battery else none(),
-                c.relay() if hw.has_enpower else none(),
+            livedata, relay = await asyncio.gather(
+                c.livedata(), c.relay() if self._hw.has_enpower else none()
             )
-        return FastData(livedata, secctrl, schedule, relay)
+        if livedata.sc_stream == "disabled":
+            await self._enable_sc_stream()
+        return LiveFeed(livedata, relay)
+
+    async def _enable_sc_stream(self) -> None:
+        now = dt_util.utcnow()
+        if (
+            self._enable_sent_at is not None
+            and now - self._enable_sent_at < SC_STREAM_ENABLE_COOLDOWN
+        ):
+            return
+        self._enable_sent_at = now
+        _LOGGER.debug("livedata reports sc_stream disabled; asking the Envoy to enable it")
+        try:
+            await self.client.enable_livedata_stream()
+        except EnvoyError as err:
+            # The values still arrive, only staler; the poll itself succeeded.
+            _LOGGER.debug("Enabling sc_stream failed: %s", err)
+
+    @callback
+    def _async_refresh_finished(self) -> None:
+        if self.last_update_success:
+            self.failed_polls = 0
+            return
+        self.failed_polls += 1
+        # The coordinator tells listeners only about the first failure in a row; entities kept
+        # through that one need telling again when they go.
+        if self.failed_polls == LIVE_FAILURES_BEFORE_UNAVAILABLE:
+            self.async_update_listeners()
+
+
+# --- Fast ---------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class FastData:
+    secctrl: SecCtrl
+    schedule: Schedule
+
+
+class FastCoordinator(DataUpdateCoordinator[FastData]):
+    """Battery state that changes slowly. Only created on sites with a battery."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        client: EnvoyClient,
+        interval: timedelta,
+    ) -> None:
+        super().__init__(
+            hass, _LOGGER, config_entry=entry, name=f"{DOMAIN} fast", update_interval=interval
+        )
+        self.client = client
+
+    async def _async_update_data(self) -> FastData:
+        with translate_errors("Envoy"):
+            secctrl, schedule = await asyncio.gather(self.client.secctrl(), self.client.schedule())
+        return FastData(secctrl, schedule)
 
 
 # --- Slow ---------------------------------------------------------------------------------------
@@ -208,8 +284,9 @@ class CloudCoordinator(DataUpdateCoordinator[BatterySettings]):
 
 
 class StreamCoordinator(DataUpdateCoordinator[StreamFrame]):
-    """Push, not poll. A background task keeps the newest frame; entities are told about it at
-    most once every `interval`, which keeps the recorder load down (spec 3.2)."""
+    """Push, not poll. A background task hands over each frame. With `interval` 0 every frame is
+    published; otherwise a frame is published only if `interval` has passed since the last one,
+    and the frames in between are dropped (spec 3.2)."""
 
     def __init__(
         self,
@@ -237,11 +314,16 @@ class StreamCoordinator(DataUpdateCoordinator[StreamFrame]):
 
     @callback
     def handle_frame(self, frame: StreamFrame) -> None:
+        now = dt_util.utcnow()
         self._latest = frame
-        self._latest_at = dt_util.utcnow()
-        if self.data is None:
+        self._latest_at = now
+        if (
+            not self.last_update_success
+            or self._published_at is None
+            or now - self._published_at >= self._interval - STREAM_THROTTLE_SLACK
+        ):
+            self._published_at = now
             self.async_set_updated_data(frame)
-            self._published_at = self._latest_at
         self.settled.set()
 
     @callback
@@ -249,22 +331,17 @@ class StreamCoordinator(DataUpdateCoordinator[StreamFrame]):
         _LOGGER.debug("Envoy stream dropped (%s); reconnecting", err)
 
     @callback
-    def _tick(self, now: datetime) -> None:
-        if self._latest_at is None:
+    def _check_stale(self, now: datetime) -> None:
+        if self._latest_at is None or not self.last_update_success:
             return
         if now - self._latest_at > STREAM_STALE_AFTER:
-            if self.last_update_success:
-                self.async_set_update_error(UpdateFailed("no stream frame for 30 s"))
-            return
-        if self._published_at is None or self._latest_at > self._published_at:
-            self._published_at = self._latest_at
-            self.async_set_updated_data(self._latest)  # type: ignore[arg-type]
+            self.async_set_update_error(UpdateFailed("no stream frame for 30 s"))
 
     def start(self, entry: ConfigEntry) -> None:
-        """Start the reader task and the publishing timer; both stop when the entry unloads."""
+        """Start the reader task and the staleness check; both stop when the entry unloads."""
         entry.async_on_unload(
             async_track_time_interval(
-                self.hass, self._tick, self._interval, cancel_on_shutdown=True
+                self.hass, self._check_stale, STREAM_STALE_CHECK, cancel_on_shutdown=True
             )
         )
         entry.async_create_background_task(self.hass, self._run(), name=f"{DOMAIN} stream")
