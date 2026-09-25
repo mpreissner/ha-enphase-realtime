@@ -49,7 +49,7 @@ async def _setup(hass: HomeAssistant, entry: MockConfigEntry) -> tuple[str | Non
     )
 
 
-async def _set_very_low_soc(hass: HomeAssistant, entity_id: str, value: int) -> None:
+async def _set_number(hass: HomeAssistant, entity_id: str, value: int) -> None:
     await hass.services.async_call(
         "number", SERVICE_SET_VALUE, {ATTR_ENTITY_ID: entity_id, ATTR_VALUE: value}, blocking=True
     )
@@ -102,7 +102,7 @@ async def test_very_low_soc_confirmed(
 ) -> None:
     _, number = await _setup(hass, config_entry)
     assert number is not None
-    await _set_very_low_soc(hass, number, 15)
+    await _set_number(hass, number, 15)
 
     assert fake.writes == [("PUT", BATTERY_SETTINGS, {"veryLowSoc": 15})]
     state = hass.states.get(number)
@@ -131,7 +131,7 @@ async def test_very_low_soc_not_confirmed_reverts(
 ) -> None:
     _, number = await _setup(hass, config_entry)
     assert number is not None
-    await _set_very_low_soc(hass, number, 15)
+    await _set_number(hass, number, 15)
 
     freezer.tick(timedelta(seconds=91))
     async_fire_time_changed(hass)
@@ -153,7 +153,7 @@ async def test_timeout_fails_even_with_envoy_down(
     """With the fast coordinator failing there are no ticks; the timer still settles it."""
     _, number = await _setup(hass, config_entry)
     assert number is not None
-    await _set_very_low_soc(hass, number, 15)
+    await _set_number(hass, number, 15)
     fake.envoy_errors[SECCTRL] = EnvoyConnectionError("down")
     await _local_tick(hass, config_entry)
     await _local_tick(hass, config_entry)
@@ -247,7 +247,7 @@ async def test_rejected_write_raises_and_keeps_state(
     fake.write_error = EnlightenConnectionError("batterySettings: HTTP 500")
 
     with pytest.raises(HomeAssistantError, match="HTTP 500"):
-        await _set_very_low_soc(hass, number, 15)
+        await _set_number(hass, number, 15)
     state = hass.states.get(number)
     assert state is not None
     assert state.state == "10"
@@ -287,3 +287,44 @@ async def test_cloud_outage_takes_controls_down(
         state = hass.states.get(entity_id)
         assert state is not None
         assert state.state == STATE_UNAVAILABLE, entity_id
+
+
+# --- Backup reserve -----------------------------------------------------------------------------
+
+
+async def test_backup_reserve_unavailable_in_full_backup(
+    hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
+) -> None:
+    # The reference site is in Full Backup, where the cloud pins the reserve at 100.
+    await _setup(hass, config_entry)
+    number = _entity_id(hass, "number", "backup_reserve")
+    assert number is not None
+    state = hass.states.get(number)
+    assert state is not None
+    assert state.state == STATE_UNAVAILABLE
+
+
+async def test_backup_reserve_confirmed(
+    hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
+) -> None:
+    fake.battery_settings_overrides = {"profile": "self-consumption", "batteryBackupPercentage": 30}
+    fake.envoy_overrides[SECCTRL] = {"configured_backup_soc": 30}
+    await _setup(hass, config_entry)
+    number = _entity_id(hass, "number", "backup_reserve")
+    assert number is not None
+    state = hass.states.get(number)
+    assert state is not None
+    assert state.state == "30"
+    assert (state.attributes["min"], state.attributes["max"]) == (5, 100)
+
+    await _set_number(hass, number, 32)
+    assert fake.writes == [("PUT", BATTERY_SETTINGS, {"batteryBackupPercentage": 32})]
+    state = hass.states.get(number)
+    assert state is not None
+    assert (state.state, state.attributes["confirmation"]) == ("32", "pending")
+
+    fake.envoy_overrides[SECCTRL] = {"configured_backup_soc": 32}
+    await _local_tick(hass, config_entry)
+    state = hass.states.get(number)
+    assert state is not None
+    assert (state.state, state.attributes["confirmation"]) == ("32", "confirmed")

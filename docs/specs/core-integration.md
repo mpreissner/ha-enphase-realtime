@@ -458,7 +458,7 @@ A failed write (anything other than 200, or an XSRF or auth error) raises
 |---|---|---|---|
 | Charge from grid switch | On: `POST acceptDisclaimer {"disclaimer-type":"itc"}`, then `PUT {"chargeFromGrid":true,"acceptedItcDisclaimer":true,"chargeBeginTime":…,"chargeEndTime":…,"chargeFromGridScheduleEnabled":false}` (keeps the current begin and end times from the last GET). Off: `PUT {"chargeFromGrid":false}` | `sc/sched['Charge From Grid Allowed']` | **Yes**, confirmed within 10–20 s |
 | Battery shutdown level number (`very_low_soc`) | `PUT {"veryLowSoc":N}`; min and max from cloud `veryLowSocMin` / `veryLowSocMax` (5–25) | `secctrl.VLS_Limit == N` | **Yes**, confirmed within about 20 s |
-| Backup reserve number | `PUT {"batteryBackupPercentage":N}`; min and max from the cloud | `secctrl.configured_backup_soc == N` | **No (spike S3).** Also only makes sense outside Full Backup, where the cloud pins it at 100. The entity is unavailable when `profile == backup_only` |
+| Backup reserve number | `PUT {"batteryBackupPercentage":N}`; min and max from the cloud | `secctrl.configured_backup_soc == N` | **Write path yes** (same PUT as the shutdown level); **local confirmation field not yet (S3)**. Built; the entity is unavailable when `profile == backup_only`, where the cloud pins it at 100 |
 
 Charge-from-grid schedule (`chargeFromGridScheduleEnabled`, begin and end times): exposed as
 diagnostic attributes only in v1. Writing them comes later. The times are minutes after local
@@ -562,7 +562,7 @@ Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`.
 |---|---|---|
 | S1 | Does `POST /login/login.json` set `_enlighten_4_session` (and allow `batterySettings` GETs)? | **Settled (September 2026 capture):** yes. The login sets the cookie (HttpOnly, Secure), its value equals the body's `session_id`, and `batterySettings`/`siteSettings` GETs work with it |
 | S2 | How to get `site_id` and `user_id` from a session | **Settled:** `login.json` returns `system_id` (the site ID in every batteryConfig path) and `manager_token`, whose `data.user_id` is the `userId`/`Username` value. `search_sites` stays as the multi-site fallback; it is still empty in about half of calls |
-| S3 | Does `PUT {"batteryBackupPercentage":N}` take effect, and where does it show locally? | Test in Self-Consumption with the user watching, then restore |
+| S3 | Does `batteryBackupPercentage` show locally as `secctrl.configured_backup_soc`? (The PUT itself is proven by the shutdown-level test.) | One change in Self-Consumption, e.g. 30 → 32 and back, with the user watching. If confirmation fails but the change took effect, the confirm field is wrong |
 | S4 | Does `POST /ivp/ensemble/relay` work with an owner token on D8.3.6086? | Only with the user present, battery SoC above 50%, and an immediate restore |
 | S5 | Do `/ivp/meters/readings` and `reports` lifetime counters match the core's lifetime values, and are they monotonic? Which storage field is charged and which discharged? (Reference site: `actEnergyDlvd` 626 Wh, `actEnergyRcvd` 13,560 Wh, on a new battery that spent the test day charging from grid, which suggests `Rcvd` = charged) | Compare during the phase 2 side-by-side run; check which storage counter rises while `agg_p_mw` is negative |
 | S6 | Dry-contact mapping (which contact switches the AC, which the dryer) | User task. Writes stay out of scope until it's done |
