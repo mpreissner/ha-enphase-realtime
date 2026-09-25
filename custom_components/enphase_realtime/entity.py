@@ -25,16 +25,34 @@ def envoy_device(serial: str, firmware: str) -> DeviceInfo:
     )
 
 
-def child_device(model: str, serial: str, envoy_device_id: str) -> DeviceInfo:
+# Model, and the device name's prefix. The prefix is the core integration's, so entity IDs,
+# which Home Assistant derives from the device name, match its (docs/MIGRATION.md).
+IQ_BATTERY = ("IQ Battery", "Encharge")
+IQ_SYSTEM_CONTROLLER = ("IQ System Controller", "Enpower")
+IQ_MICROINVERTER = ("IQ Microinverter", "Inverter")
+
+
+def child_device(kind: tuple[str, str], serial: str, envoy_device_id: str) -> DeviceInfo:
     """System Controller, IQ Battery or microinverter, all hanging off the Envoy."""
+    model, prefix = kind
     return DeviceInfo(
         identifiers={(DOMAIN, serial)},
         manufacturer=MANUFACTURER,
         model=model,
-        name=f"{model} {serial}",
+        name=f"{prefix} {serial}",
         serial_number=serial,
         via_device_id=envoy_device_id,
     )
+
+
+def controller_or_envoy(
+    controller_serials: list[str], envoy_device_id: str, envoy: DeviceInfo
+) -> DeviceInfo:
+    """Where the core integration puts grid and reserve entities: the System Controller, or the
+    Envoy on a site without one."""
+    if not controller_serials:
+        return envoy
+    return child_device(IQ_SYSTEM_CONTROLLER, controller_serials[0], envoy_device_id)
 
 
 class ValueDescription(Protocol):

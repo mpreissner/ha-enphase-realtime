@@ -1,6 +1,5 @@
-"""Battery shutdown level (`veryLowSoc`) and backup reserve (`batteryBackupPercentage`) numbers
-(spec 6.2). The backup reserve's local confirmation (`configured_backup_soc`) is still to be checked
-on a live system (spike S3)."""
+"""Battery shutdown level (`veryLowSoc`) and reserve battery level (`batteryBackupPercentage`)
+numbers (spec 6.2). The reserve's local confirmation is still to be checked live (spike S3)."""
 
 from __future__ import annotations
 
@@ -16,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import EnphaseConfigEntry
 from .control import CloudControl
 from .enlighten_client.battery import BatteryConfigClient
-from .entity import envoy_device
+from .entity import controller_or_envoy, envoy_device
 
 PARALLEL_UPDATES = 1
 
@@ -36,7 +35,7 @@ class EnphaseNumberDescription(NumberEntityDescription):
 
 
 VERY_LOW_SOC = EnphaseNumberDescription(
-    key="very_low_soc",
+    key="battery_shutdown_level",
     name="Battery shutdown level",
     icon="mdi:battery-alert-variant-outline",
     native_unit_of_measurement=PERCENTAGE,
@@ -47,8 +46,8 @@ VERY_LOW_SOC = EnphaseNumberDescription(
 
 
 BACKUP_RESERVE = EnphaseNumberDescription(
-    key="backup_reserve",
-    name="Backup reserve",
+    key="reserve_battery_level",
+    name="Reserve battery level",
     icon="mdi:battery-lock",
     native_unit_of_measurement=PERCENTAGE,
     native_step=1,
@@ -130,9 +129,13 @@ async def async_setup_entry(
     if rt.cloud is None or rt.fast is None:
         return
     envoy = envoy_device(rt.serial, rt.firmware)
+    inventory = rt.slow.data.inventory
+    controllers = inventory.system_controllers if inventory is not None else []
+    # Where the core integration's reserve number is, so the entity ID matches.
+    reserve_device = controller_or_envoy([c.serial for c in controllers], rt.envoy_device_id, envoy)
     async_add_entities(
         [
             VeryLowSocNumber(rt.fast, rt.cloud, VERY_LOW_SOC, envoy, rt.serial),
-            BackupReserveNumber(rt.fast, rt.cloud, BACKUP_RESERVE, envoy, rt.serial),
+            BackupReserveNumber(rt.fast, rt.cloud, BACKUP_RESERVE, reserve_device, rt.serial),
         ]
     )

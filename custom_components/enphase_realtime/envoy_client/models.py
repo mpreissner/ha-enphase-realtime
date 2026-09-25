@@ -274,6 +274,8 @@ class SecCtrl:
     backup_energy: int | None
     very_low_soc: int
     configured_backup_soc: int
+    # The reserve the Envoy applies now; differs from the configured one, e.g. during Storm Guard.
+    adjusted_backup_soc: int | None
 
     @classmethod
     def from_payload(cls, data: Any) -> SecCtrl:
@@ -286,16 +288,15 @@ class SecCtrl:
                 backup_energy=data.get("ENC_agg_backup_energy"),
                 very_low_soc=data["VLS_Limit"],
                 configured_backup_soc=data["configured_backup_soc"],
+                adjusted_backup_soc=data.get("adjusted_backup_soc"),
             )
 
 
 @dataclass(frozen=True, slots=True)
 class Schedule:
-    """`/ivp/sc/sched`. `mode` is the short code (`CP`), or the full label if it has none."""
+    """`/ivp/sc/sched`. Its `acb_current_mode` isn't read: it keeps the last commanded mode
+    (e.g. Charge From Grid) after the battery has stopped (docs/FINDINGS.md)."""
 
-    mode_index: int
-    mode: str | None
-    mode_label: str | None
     charge_from_grid_allowed: bool
     reserve_energy: int | None
     battery_count: int | None
@@ -303,13 +304,7 @@ class Schedule:
     @classmethod
     def from_payload(cls, data: Any) -> Schedule:
         with _parsing("/ivp/sc/sched"):
-            index = int(data["acb_current_mode"])
-            labels = data.get("sched_mode_key") or []
-            label = labels[index] if 0 <= index < len(labels) else None
             return cls(
-                mode_index=index,
-                mode=label.split(" - ", 1)[0] if label else None,
-                mode_label=label,
                 charge_from_grid_allowed=bool(data["Charge From Grid Allowed"]),
                 reserve_energy=data.get("Agg VLS Energy"),
                 battery_count=data.get("Num_of_enc"),
@@ -324,11 +319,6 @@ class Relay:
     @property
     def grid_connected(self) -> bool:
         return self.oper_state == "closed"
-
-    @property
-    def grid_outage(self) -> bool:
-        """Told to stay on grid, but the relay is open: the grid has gone."""
-        return self.admin_state == "closed" and self.oper_state == "open"
 
     @classmethod
     def from_payload(cls, data: Any) -> Relay:

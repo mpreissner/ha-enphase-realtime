@@ -17,7 +17,15 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import EnphaseConfigEntry
 from .coordinator import LiveFeed, SlowData
-from .entity import EnphaseEntity, by_serial, child_device, envoy_device
+from .entity import (
+    IQ_BATTERY,
+    IQ_SYSTEM_CONTROLLER,
+    EnphaseEntity,
+    by_serial,
+    child_device,
+    controller_or_envoy,
+    envoy_device,
+)
 
 PARALLEL_UPDATES = 0
 
@@ -34,26 +42,12 @@ def _relay(d: LiveFeed):
     return d.relay
 
 
-_FAST = (
-    EnphaseBinarySensorDescription(
-        key="charge_from_grid",
-        name="Charge from grid in effect",
-        value_fn=lambda d: d.schedule.charge_from_grid_allowed,
-    ),
-)
-
 _ENPOWER_LIVE = (
     EnphaseBinarySensorDescription(
         key="grid_status",
         name="Grid status",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         value_fn=lambda d: _relay(d).grid_connected,
-    ),
-    EnphaseBinarySensorDescription(
-        key="grid_outage",
-        name="Grid outage",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        value_fn=lambda d: _relay(d).grid_outage,
     ),
 )
 
@@ -141,23 +135,27 @@ async def async_setup_entry(
     envoy = envoy_device(rt.serial, rt.firmware)
     entities: list[EnphaseBinarySensor] = []
 
-    if rt.fast is not None:
-        entities += [EnphaseBinarySensor(rt.fast, d, envoy, rt.serial) for d in _FAST]
-    if rt.hardware.has_enpower:
-        entities += [EnphaseBinarySensor(rt.live, d, envoy, rt.serial) for d in _ENPOWER_LIVE]
-
     slow = rt.slow.data
+    if rt.hardware.has_enpower:
+        controllers = slow.inventory.system_controllers if slow.inventory is not None else []
+        relay_device = controller_or_envoy(
+            [c.serial for c in controllers], rt.envoy_device_id, envoy
+        )
+        entities += [
+            EnphaseBinarySensor(rt.live, d, relay_device, rt.serial) for d in _ENPOWER_LIVE
+        ]
+
     contacts_device = envoy
     if slow.inventory is not None:
         for battery in slow.inventory.batteries:
-            device = child_device("IQ Battery", battery.serial, rt.envoy_device_id)
+            device = child_device(IQ_BATTERY, battery.serial, rt.envoy_device_id)
             entities += [
                 EnphaseBinarySensor(rt.slow, d, device, battery.serial)
                 for d in _battery(battery.serial)
             ]
         for controller in slow.inventory.system_controllers:
             contacts_device = child_device(
-                "IQ System Controller", controller.serial, rt.envoy_device_id
+                IQ_SYSTEM_CONTROLLER, controller.serial, rt.envoy_device_id
             )
             entities += [
                 EnphaseBinarySensor(rt.slow, d, contacts_device, controller.serial)

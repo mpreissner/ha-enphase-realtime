@@ -28,7 +28,7 @@ from .enlighten_client.battery import BatteryConfigClient
 from .enlighten_client.errors import EnlightenAuthError, EnlightenError
 from .enlighten_client.models import charge_from_grid_available
 from .enlighten_client.session import EnlightenSession
-from .entity import child_device, envoy_device
+from .entity import controller_or_envoy, envoy_device
 from .envoy_client.errors import EnvoyError
 from .envoy_client.models import Relay
 
@@ -214,10 +214,8 @@ def _grid_relay(entry: EnphaseConfigEntry) -> GridRelaySwitch | None:
         return None
     inventory = rt.slow.data.inventory
     controllers = inventory.system_controllers if inventory is not None else []
-    device = (
-        child_device("IQ System Controller", controllers[0].serial, rt.envoy_device_id)
-        if controllers
-        else envoy_device(rt.serial, rt.firmware)
+    device = controller_or_envoy(
+        [c.serial for c in controllers], rt.envoy_device_id, envoy_device(rt.serial, rt.firmware)
     )
     return GridRelaySwitch(rt.live, rt.enlighten, entry.data[CONF_SITE_ID], device, rt.serial)
 

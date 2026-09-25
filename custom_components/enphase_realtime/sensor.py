@@ -29,7 +29,15 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from . import EnphaseConfigEntry
 from .const import BATTERY_TEMPERATURE_UNIT, ENPOWER_TEMPERATURE_UNIT, PHASE_NAMES
 from .coordinator import FastData, LiveFeed, SlowData
-from .entity import EnphaseEntity, by_serial, child_device, envoy_device
+from .entity import (
+    IQ_BATTERY,
+    IQ_MICROINVERTER,
+    IQ_SYSTEM_CONTROLLER,
+    EnphaseEntity,
+    by_serial,
+    child_device,
+    envoy_device,
+)
 from .envoy_client.models import LivePower, PhaseLayout, StreamFrame, StreamMeter
 
 PARALLEL_UPDATES = 0
@@ -60,6 +68,11 @@ def _k(phase: str) -> str:
     return phase.replace("-", "_")
 
 
+def _key(name: str) -> str:
+    """A unique-ID key that matches the entity ID Home Assistant derives from `name`."""
+    return name.lower().replace(" ", "_")
+
+
 def _required[T](value: T | None, what: str) -> T:
     """Missing sections make the entity unavailable rather than unknown."""
     if value is None:
@@ -69,11 +82,11 @@ def _required[T](value: T | None, what: str) -> T:
 
 # --- Stream (5.1) -------------------------------------------------------------------------------
 
-# Frame attribute, unique-ID key, name.
+# Frame attribute, power sensor name and CT name, as the core integration names them.
 _STREAM_METERS = (
-    ("production", "production", "Production"),
-    ("total_consumption", "consumption", "Consumption"),
-    ("net_consumption", "net", "Net"),
+    ("production", "Current power production", "production CT"),
+    ("total_consumption", "Current power consumption", "total consumption CT"),
+    ("net_consumption", "Current net power consumption", "net consumption CT"),
 )
 
 
@@ -83,21 +96,23 @@ def _stream_meter(attr: str) -> Callable[[StreamFrame], StreamMeter]:
 
 def _stream_sensors(layout: PhaseLayout) -> list[EnphaseSensorDescription]:
     out: list[EnphaseSensorDescription] = []
-    for attr, key, name in _STREAM_METERS:
+    for attr, name, ct in _STREAM_METERS:
         meter = _stream_meter(attr)
-        out.append(_power(f"{key}_power", f"{name} power", lambda f, m=meter: m(f).power))
+        out.append(_power(_key(name), name, lambda f, m=meter: m(f).power))
         for ph in layout.phases:
+            phase = PHASE_NAMES[ph]
             out.append(
                 _power(
-                    f"{key}_power_{_k(ph)}",
-                    f"{name} power {PHASE_NAMES[ph]}",
+                    _key(f"{name} {phase}"),
+                    f"{name} {phase}",
                     lambda f, m=meter, ph=ph: m(f).phases[ph].power,
                 )
             )
+            current = f"{ct[0].upper()}{ct[1:]} current {phase}"
             out.append(
                 EnphaseSensorDescription(
-                    key=f"{key}_current_{_k(ph)}",
-                    name=f"{name} current {PHASE_NAMES[ph]}",
+                    key=_key(current),
+                    name=current,
                     device_class=SensorDeviceClass.CURRENT,
                     state_class=SensorStateClass.MEASUREMENT,
                     native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
@@ -108,8 +123,8 @@ def _stream_sensors(layout: PhaseLayout) -> list[EnphaseSensorDescription]:
             )
             out.append(
                 EnphaseSensorDescription(
-                    key=f"{key}_power_factor_{_k(ph)}",
-                    name=f"{name} power factor {PHASE_NAMES[ph]}",
+                    key=_key(f"Power factor {ct} {phase}"),
+                    name=f"Power factor {ct} {phase}",
                     device_class=SensorDeviceClass.POWER_FACTOR,
                     state_class=SensorStateClass.MEASUREMENT,
                     suggested_display_precision=2,
@@ -123,12 +138,11 @@ def _stream_sensors(layout: PhaseLayout) -> list[EnphaseSensorDescription]:
     # A single-phase site gets unsuffixed readings from its one phase.
     voltage_phases = layout.phases or ("ph-a",)
     for ph in voltage_phases:
-        suffix = f" {PHASE_NAMES[ph]}" if layout.phases else ""
-        key_suffix = f"_{_k(ph)}" if layout.phases else ""
+        name = "Voltage net consumption CT" + (f" {PHASE_NAMES[ph]}" if layout.phases else "")
         out.append(
             EnphaseSensorDescription(
-                key=f"voltage{key_suffix}",
-                name=f"Voltage{suffix}",
+                key=_key(name),
+                name=name,
                 device_class=SensorDeviceClass.VOLTAGE,
                 state_class=SensorStateClass.MEASUREMENT,
                 native_unit_of_measurement=UnitOfElectricPotential.VOLT,
@@ -139,8 +153,8 @@ def _stream_sensors(layout: PhaseLayout) -> list[EnphaseSensorDescription]:
         )
     out.append(
         EnphaseSensorDescription(
-            key="frequency",
-            name="Frequency",
+            key="frequency_net_consumption_ct",
+            name="Frequency net consumption CT",
             device_class=SensorDeviceClass.FREQUENCY,
             state_class=SensorStateClass.MEASUREMENT,
             native_unit_of_measurement=UnitOfFrequency.HERTZ,
@@ -200,8 +214,14 @@ def _live_sensors(
             )
     if has_battery:
         storage = _live("storage")
-        # Raw Envoy sign: positive is discharging (spec 5.1).
-        out.append(_power("battery_power", "Battery power", lambda d: storage(d).power))
+        # Raw Envoy sign: positive is discharging (spec 5.1), as the core integration's.
+        out.append(
+            _power(
+                "current_battery_discharge",
+                "Current battery discharge",
+                lambda d: storage(d).power,
+            )
+        )
     return out
 
 
@@ -247,36 +267,39 @@ def _fast_sensors() -> list[EnphaseSensorDescription]:
         energy(
             "reserve_battery_energy", "Reserve battery energy", lambda d: d.schedule.reserve_energy
         ),
-        # The unique ID predates the name the Enphase app uses.
+        # The Enphase app's name; the core integration doesn't have it.
         percent(
-            "reserve_battery_level", "Battery shutdown level", lambda d: d.secctrl.very_low_soc
+            "battery_shutdown_level", "Battery shutdown level", lambda d: d.secctrl.very_low_soc
         ),
         percent(
-            "backup_soc_target", "Backup SoC target", lambda d: d.secctrl.configured_backup_soc
+            "reserve_battery_level",
+            "Reserve battery level",
+            lambda d: d.secctrl.adjusted_backup_soc,
+        ),
+        percent(
+            "configured_reserve_battery_level",
+            "Configured reserve battery level",
+            lambda d: d.secctrl.configured_backup_soc,
         ),
         percent(
             "battery_state_of_health",
             "Battery state of health",
             lambda d: d.secctrl.state_of_health,
         ),
-        # A plain string: an enum would break on a mode code we haven't seen.
-        EnphaseSensorDescription(
-            key="controller_mode",
-            name="Controller mode",
-            value_fn=lambda d: d.schedule.mode,
-        ),
     ]
 
 
 # --- Slow (5.2, 5.3, 5.5, 5.6) ------------------------------------------------------------------
 
+# The core integration's names, so the Energy dashboard keeps its history across a move. Its
+# "net energy consumption" is grid import and "net energy production" grid export.
 _LIFETIME = (
-    ("production", "lifetime_production", "Lifetime production"),
-    ("grid_import", "lifetime_grid_import", "Lifetime grid import"),
-    ("grid_export", "lifetime_grid_export", "Lifetime grid export"),
-    ("consumption", "lifetime_consumption", "Lifetime consumption"),
-    ("storage_delivered", "lifetime_battery_discharged", "Lifetime battery discharged"),
-    ("storage_received", "lifetime_battery_charged", "Lifetime battery charged"),
+    ("production", "Lifetime energy production"),
+    ("grid_import", "Lifetime net energy consumption"),
+    ("grid_export", "Lifetime net energy production"),
+    ("consumption", "Lifetime energy consumption"),
+    ("storage_delivered", "Lifetime battery energy discharged"),
+    ("storage_received", "Lifetime battery energy charged"),
 )
 
 
@@ -284,7 +307,7 @@ def _lifetime_sensors(data: SlowData) -> list[EnphaseSensorDescription]:
     """Only the counters whose meter is enabled (spec 5.2)."""
     return [
         EnphaseSensorDescription(
-            key=key,
+            key=_key(name),
             name=name,
             device_class=SensorDeviceClass.ENERGY,
             state_class=SensorStateClass.TOTAL_INCREASING,
@@ -292,7 +315,7 @@ def _lifetime_sensors(data: SlowData) -> list[EnphaseSensorDescription]:
             suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             value_fn=lambda d, a=attr: getattr(d.energy, a),
         )
-        for attr, key, name in _LIFETIME
+        for attr, name in _LIFETIME
         if getattr(data.energy, attr) is not None
     ]
 
@@ -325,8 +348,8 @@ def _battery_sensors(serial: str) -> list[EnphaseSensorDescription]:
 
     return [
         EnphaseSensorDescription(
+            # Named by its device class, "Battery", as in the core integration.
             key="soc",
-            name=None,
             device_class=SensorDeviceClass.BATTERY,
             state_class=SensorStateClass.MEASUREMENT,
             native_unit_of_measurement=PERCENTAGE,
@@ -465,18 +488,18 @@ async def async_setup_entry(
             add(
                 rt.slow,
                 _battery_sensors(battery.serial),
-                child_device("IQ Battery", battery.serial, rt.envoy_device_id),
+                child_device(IQ_BATTERY, battery.serial, rt.envoy_device_id),
                 battery.serial,
             )
         for controller in slow.inventory.system_controllers:
-            device = child_device("IQ System Controller", controller.serial, rt.envoy_device_id)
+            device = child_device(IQ_SYSTEM_CONTROLLER, controller.serial, rt.envoy_device_id)
             contacts_device = device
             add(rt.slow, _controller_sensors(controller.serial), device, controller.serial)
     for inverter in slow.inverters:
         add(
             rt.slow,
             _inverter_sensors(inverter.serial),
-            child_device("IQ Microinverter", inverter.serial, rt.envoy_device_id),
+            child_device(IQ_MICROINVERTER, inverter.serial, rt.envoy_device_id),
             inverter.serial,
         )
     for contact_id, settings in slow.dry_contact_settings.items():

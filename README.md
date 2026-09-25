@@ -38,19 +38,17 @@ recorder. Replace `<serial>` with your Envoy's serial number:
 recorder:
   exclude:
     entity_globs:
+      - sensor.envoy_<serial>_current_*
       - sensor.envoy_<serial>_*_power
-      - sensor.envoy_<serial>_*_power_*
-      - sensor.envoy_<serial>_*_current_*
-      - sensor.envoy_<serial>_*_power_factor_*
-      - sensor.envoy_<serial>_voltage*
-      - sensor.envoy_<serial>_frequency
+      - sensor.envoy_<serial>_*_ct*
+      - sensor.envoy_<serial>_voltage_l1_l2
 ```
 
 The energy panel reads the lifetime energy sensors, which update slowly and aren't excluded.
 
 **Which sensors to trigger on.** Use the live-poll sensors (grid, load, PV and battery power,
-grid status) for time-critical automations. The streamed meter sensors (production,
-consumption and net power, and the per-phase readings) average one reading a second, but the
+grid status) for time-critical automations. The streamed meter sensors (current power
+production, consumption and net consumption, and the per-phase readings) average one reading a second, but the
 Envoy sometimes holds the stream for several seconds and then catches up in a burst.
 
 **Load shedding and the battery's own protection.** A 1 s update still has to pass through
@@ -75,7 +73,7 @@ Envoy reports that the relay has actually moved, and marks it `confirmation: con
 `failed` if it hasn't moved after 30 s.
 
 The switch shows what the relay has been told. For whether the house is actually on the grid, use
-the **Grid status** binary sensor; **Grid outage** turns on when the relay is told to stay on the
-grid but is open, which is what an outage looks like.
+the **Grid status** binary sensor on the IQ System Controller device. Grid status off with Grid
+enabled on means the grid has gone.
 
 **Status:** pre-alpha, not yet functional.

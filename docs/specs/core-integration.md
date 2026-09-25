@@ -53,7 +53,7 @@ such.
 | Slow, stale data | Polls `production.json` (30–55 s), `inventory.json` (~20 s) and `home.json` (over 60 s) every 60 s |
 | Charge-from-grid switch has no effect | pyenphase writes `/admin/lib/tariff`. On D8.3.6086 the file is saved but the controller ignores it (FINDINGS: "Local writes do not work") |
 | Reserve and storage-mode controls are unreliable | Same tariff path. They show values from a stale file that doesn't reflect the live settings |
-| No power-flow detail | Doesn't expose per-phase grid, load, PV and storage power from `livedata`, controller mode or setpoint |
+| No power-flow detail | Doesn't expose per-phase grid, load, PV and storage power from `livedata` |
 
 ## 3. Architecture
 
@@ -94,8 +94,8 @@ custom_components/enphase_realtime/
 | Coordinator | Source | Default cadence | Feeds |
 |---|---|---|---|
 | `StreamCoordinator` | `GET /stream/meter` (server push, `data: {json}` lines, about 1 Hz) | every frame as it arrives (option: throttle to one write per 1–60 s, see 3.2) | Production, net-consumption and total-consumption power per phase; voltage, current, PF, frequency |
-| `LiveCoordinator` | `/ivp/livedata/status`, and `/ivp/ensemble/relay` on sites with a System Controller | 1 s (options: 1–60) | Battery, grid, load and PV power; relay states; grid status and grid outage |
-| `FastCoordinator` | `/ivp/ensemble/secctrl`, `/ivp/sc/sched` (sites with a battery; not created otherwise) | 5 s (options: 2–60) | SoC; available energy; controller mode; charge-from-grid in effect; battery shutdown level (`VLS_Limit`); local confirmation of cloud writes (6.1) |
+| `LiveCoordinator` | `/ivp/livedata/status`, and `/ivp/ensemble/relay` on sites with a System Controller | 1 s (options: 1–60) | Battery, grid, load and PV power; relay states; grid status |
+| `FastCoordinator` | `/ivp/ensemble/secctrl`, `/ivp/sc/sched` (sites with a battery; not created otherwise) | 5 s (options: 2–60) | SoC; available energy; charge from grid; battery shutdown level (`VLS_Limit`); local confirmation of cloud writes (6.1) |
 | `SlowCoordinator` | `/ivp/meters`, `/ivp/meters/readings`, `/ivp/meters/reports`, `/ivp/ensemble/inventory`, `/ivp/ss/dry_contact_settings`, `/ivp/ensemble/dry_contacts`, `/api/v1/production/inverters` | 60 s | Meter layout (phase check, 3.3), lifetime energy counters, battery and System Controller health, dry-contact state, per-micro watts |
 | `CloudCoordinator` | `GET batterySettings/{site}` | 300 s, plus an immediate refresh after each write | Profile (storage mode), backup %, charge-from-grid, `veryLowSoc` and their limits, `pendingGateways` |
 
@@ -312,17 +312,29 @@ discarded.
 
 ## 5. Entities and parity with the core integration
 
-**Devices:**
+**Devices** are named as in the core integration, because Home Assistant derives entity IDs
+from the device name. The model carries Enphase's current product name.
 
-- Envoy (serial)
-- System Controller (Enpower serial)
-- one device per IQ Battery (serial)
-- one device per microinverter, all disabled by default
+| Device name | Model |
+|---|---|
+| `Envoy <serial>` | Envoy |
+| `Enpower <serial>` | IQ System Controller |
+| `Encharge <serial>`, one per battery | IQ Battery |
+| `Inverter <serial>`, one per microinverter, all disabled by default | IQ Microinverter |
 
 The Envoy device is registered at setup, before the platforms load, and the others link to it
 with `via_device_id`, its device registry ID.
 
-**Unique IDs:** `<serial>_<key>`.
+**Naming.** Where the core integration has the same entity, it gets the core's name and device,
+so the entity ID is the same and a move keeps its history without editing IDs
+(`docs/MIGRATION.md`). Grid status, the grid relay switch and the reserve number
+sit on the System Controller, as in core, and on the Envoy on a site without one. The
+Enphase-Envoy-mqtt-json add-on has no fixed names (users define their own MQTT sensors), so
+there's nothing to match there. Entities core doesn't have get plain names: Grid, Load and PV
+power, Battery shutdown level (the Enphase app's term).
+
+**Unique IDs:** `<serial>_<key>`, where the key is usually the entity ID's suffix. The grid
+entities and the reserve number keep the Envoy's serial even on the System Controller device.
 
 Source key: **S** = stream, **R** = live (1 s), **F** = fast, **L** = slow, **C** = cloud.
 
@@ -330,14 +342,14 @@ Source key: **S** = stream, **R** = live (1 s), **F** = fast, **L** = slow, **C*
 
 | Entity | Source | Core equivalent |
 |---|---|---|
-| Production power, total and per phase | S `production` | `current_power_production`, `production_ct_power` |
-| Consumption power, total and per phase | S `total-consumption` | `current_power_consumption` |
-| Net power, total and per phase (positive = import) | S `net-consumption` | `current_net_power_consumption` |
-| Battery power (positive = discharge) | R `livedata.meters.storage.agg_p_mw` / 1000, raw sign (livedata balances as load = grid + pv + storage, so positive already means discharging) | `current_battery_discharge` |
+| Current power production, total and per phase | S `production` | `current_power_production`, `production_ct_power` |
+| Current power consumption, total and per phase | S `total-consumption` | `current_power_consumption` |
+| Current net power consumption, total and per phase (positive = import) | S `net-consumption` | `current_net_power_consumption` |
+| Current battery discharge (positive = discharge) | R `livedata.meters.storage.agg_p_mw` / 1000, raw sign (livedata balances as load = grid + pv + storage, so positive already means discharging) | `current_battery_discharge` |
 | Grid power | R `meters.grid.agg_p_mw` / 1000 | – (new) |
 | Load power | R `meters.load.agg_p_mw` / 1000 | – (new) |
 | PV power (livedata) | R `meters.pv.agg_p_mw` / 1000 | – (new; this is the fallback when the stream is off) |
-| Voltage, current, PF, frequency per phase | S | – (new, disabled by default) |
+| Voltage, current, PF per phase; frequency | S, net-consumption CT for voltage and frequency | `net_ct_*`, `production_ct_*`, `total_consumption_ct_*` names (disabled by default) |
 | L1–L2 voltage (split-phase only) | S `v_a + v_b` | – (new, disabled by default) |
 
 "Per phase" means one entity per phase in `phase_layout` (3.3): none for single-phase, L1 and
@@ -349,10 +361,10 @@ stream is off.
 
 | Entity | Source | Core equivalent |
 |---|---|---|
-| Lifetime production | L `/ivp/meters/readings`, production meter `actEnergyDlvd` | `lifetime_energy_*`, `production_ct_energy_*` |
-| Lifetime grid import and export | L readings, net-consumption meter: `actEnergyDlvd` = import, `actEnergyRcvd` = export | `lifetime_net_energy_*` |
-| Lifetime consumption | L `/ivp/meters/reports`, `total-consumption` `cumulative.whDlvdCum` | `lifetime_energy_*` |
-| Lifetime battery charged and discharged | L readings, storage meter (which field is which: spike S5) | `lifetime_battery_energy_*` |
+| Lifetime energy production | L `/ivp/meters/readings`, production meter `actEnergyDlvd` | `lifetime_energy_*`, `production_ct_energy_*` |
+| Lifetime net energy consumption (grid import) and Lifetime net energy production (grid export) | L readings, net-consumption meter: `actEnergyDlvd` = import, `actEnergyRcvd` = export | `lifetime_net_energy_*` |
+| Lifetime energy consumption | L `/ivp/meters/reports`, `total-consumption` `cumulative.whDlvdCum` | `lifetime_energy_*` |
+| Lifetime battery energy charged and discharged | L readings, storage meter: `actEnergyRcvd` = charged, `actEnergyDlvd` = discharged (S5) | `lifetime_battery_energy_*` |
 | Energy today, energy last 7 days | **Dropped** | The Envoy only has these in the slow `production.json`. Use HA's `utility_meter` or the Energy dashboard on the lifetime counters |
 
 **Why two endpoints.** Neither one has everything:
@@ -384,11 +396,10 @@ aren't exposed in v1.
 | Aggregate SoC | F `secctrl.agg_soc` | `envoy_battery` |
 | Available energy, capacity | F `secctrl.ENC_agg_avail_energy`, `Max_energy` | `available_battery_energy`, `battery_capacity` |
 | Reserve energy | F `sc/sched['Agg VLS Energy']` | `reserve_battery_energy` |
-| Battery shutdown level | F `secctrl.VLS_Limit` | `reserve_battery_level` |
-| Backup SoC target | F `secctrl.configured_backup_soc` | – |
+| Battery shutdown level | F `secctrl.VLS_Limit` | – (new; the Enphase app's name) |
+| Reserve battery level (applied now) | F `secctrl.adjusted_backup_soc` | `reserve_battery_level` |
+| Configured reserve battery level | F `secctrl.configured_backup_soc` | `configured_reserve_battery_level` |
 | State of health | F `secctrl.ENC_agg_soh` | – (new) |
-| Controller mode (enum: ID, ZN, CG, DG, ND, DL, CP, …) | F `sc/sched.acb_current_mode`, labelled using `sched_mode_key` | – (new) |
-| Charge from grid in effect (binary) | F `sc/sched['Charge From Grid Allowed']` | – (new; this is the true value) |
 | Per-battery: SoC, temperature, max cell temperature, communicating, DC switch, last reported, status | L `ensemble/inventory` ENCHARGE | `encharge_*` |
 | System Controller: communicating, temperature, last reported | L `ensemble/inventory` ENPOWER | `enpower_*` |
 | Storage mode (read-only sensor) | C `profile` | `storage_mode` select (writable in core; read-only here) |
@@ -411,7 +422,6 @@ nothing is pending, and it isn't a parse error.
 |---|---|---|
 | Grid status: on when the relay is actually closed | R `relay.mains_oper_state == "closed"` | `enpower_grid_status` |
 | Grid enabled switch | R `mains_admin_state`; write in 6.3 | `enpower_grid_enabled` |
-| Grid outage (binary, problem class): on when admin is closed but oper is open | R derived | – (new; this is the signature the existing HA automation already relies on) |
 
 ### 5.5 Microinverters
 
@@ -457,8 +467,8 @@ A failed write (anything other than 200, or an XSRF or auth error) raises
 | Entity | Write | Confirm locally with | Verified? |
 |---|---|---|---|
 | Charge from grid switch | On: `POST acceptDisclaimer {"disclaimer-type":"itc"}`, then `PUT {"chargeFromGrid":true,"acceptedItcDisclaimer":true,"chargeBeginTime":…,"chargeEndTime":…,"chargeFromGridScheduleEnabled":false}` (keeps the current begin and end times from the last GET). Off: `PUT {"chargeFromGrid":false}` | `sc/sched['Charge From Grid Allowed']` | **Yes**, confirmed within 10–20 s |
-| Battery shutdown level number (`very_low_soc`) | `PUT {"veryLowSoc":N}`; min and max from cloud `veryLowSocMin` / `veryLowSocMax` (5–25) | `secctrl.VLS_Limit == N` | **Yes**, confirmed within about 20 s |
-| Backup reserve number | `PUT {"batteryBackupPercentage":N}`; min and max from the cloud | `secctrl.configured_backup_soc == N` | **Write path yes** (same PUT as the shutdown level); **local confirmation field not yet (S3)**. Built; the entity is unavailable when `profile == backup_only`, where the cloud pins it at 100 |
+| Battery shutdown level number | `PUT {"veryLowSoc":N}`; min and max from cloud `veryLowSocMin` / `veryLowSocMax` (5–25) | `secctrl.VLS_Limit == N` | **Yes**, confirmed within about 20 s |
+| Reserve battery level number (on the System Controller) | `PUT {"batteryBackupPercentage":N}`; min and max from the cloud | `secctrl.configured_backup_soc == N` | **Write path yes** (same PUT as the shutdown level); **local confirmation field not yet (S3)**. Built; the entity is unavailable when `profile == backup_only`, where the cloud pins it at 100 |
 
 Charge-from-grid schedule (`chargeFromGridScheduleEnabled`, begin and end times): exposed as
 diagnostic attributes only in v1. Writing them comes later. The times are minutes after local
@@ -552,9 +562,8 @@ Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`.
    settled and a day at 1 s shows no Envoy errors or timeouts beyond the occasional miss.
 5. **Grid relay control** (once S4 passes) and a migration guide:
    - disable the core integration
-   - rename entity IDs to keep automations and history
-   - repoint automations that use the core grid-status entities (on the reference site,
-     `automation.grid_loss_circuit_shedding`) to the new grid outage binary sensor
+   - remove the `_2` suffixes to take over the core entity IDs, which keeps automations
+     (including ones on the core grid status and grid enabled entities) and history
 
 ## 10. Spikes and open questions
 
