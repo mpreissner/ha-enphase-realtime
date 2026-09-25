@@ -64,6 +64,13 @@ Slow endpoints to avoid polling: `production.json` (30–55 s), `inventory.json`
 `storage_settings` in the tariff file is a stale copy (dated weeks before the test). Don't
 treat it as the current state.
 
+State left on the reference Envoy (checked 2026-09-25): the tariff file matches the original
+except `storage_settings.charge_from_grid`, which the last test set to `false` and which was
+kept, so a firmware that honours the file wouldn't charge from grid. The must-charge window is
+off (duration 0, mode CP). Cloud changes to charge from grid did not rewrite the file
+(`storage_settings.date` unchanged), and `/ivp/sc/sched` `acb_current_mode` kept reading CG
+through them while the battery charged and stopped as told.
+
 ## Enlighten cloud battery API (write)
 
 Base `https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1`.
