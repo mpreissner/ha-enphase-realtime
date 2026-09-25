@@ -66,6 +66,8 @@ class EnphaseData:
     phase_layout: PhaseLayout
     hardware: Hardware
     client: EnvoyClient
+    # The Enlighten login, for the grid relay's pre-check (spec 6.3).
+    enlighten: EnlightenSession
     tokens: TokenKeeper
     live: LiveCoordinator
     # None on sites without a battery.
@@ -160,6 +162,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
         phase_layout=PhaseLayout(data[CONF_PHASE_LAYOUT]),
         hardware=hardware,
         client=client,
+        enlighten=cloud,
         tokens=tokens,
         live=live,
         fast=fast,

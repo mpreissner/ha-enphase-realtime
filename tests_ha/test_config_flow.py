@@ -12,6 +12,7 @@ from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.enphase_realtime.const import (
+    CONF_ALLOW_GRID_RELAY,
     CONF_CLOUD_INTERVAL,
     CONF_COUNTRY,
     CONF_ENABLE_STREAM,
@@ -33,7 +34,7 @@ from custom_components.enphase_realtime.enlighten_client.errors import (
 )
 from custom_components.enphase_realtime.envoy_client.errors import EnvoyConnectionError
 
-from .conftest import EMAIL, HOST, PASSWORD, SERIAL, SITE, FakeEnphase
+from .conftest import EMAIL, HOST, PASSWORD, SERIAL, SITE, FakeEnphase, entry_data
 
 USER_INPUT = {CONF_HOST: HOST, CONF_EMAIL: EMAIL, CONF_PASSWORD: PASSWORD}
 
@@ -204,6 +205,7 @@ async def test_options(hass: HomeAssistant, config_entry: MockConfigEntry) -> No
             CONF_ENABLE_STREAM: False,
             CONF_COUNTRY: "AU",
             CONF_TIME_ZONE: "Australia/Sydney",
+            CONF_ALLOW_GRID_RELAY: True,
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -215,4 +217,16 @@ async def test_options(hass: HomeAssistant, config_entry: MockConfigEntry) -> No
         CONF_ENABLE_STREAM: False,
         CONF_COUNTRY: "AU",
         CONF_TIME_ZONE: "Australia/Sydney",
+        CONF_ALLOW_GRID_RELAY: True,
     }
+
+
+async def test_options_without_a_system_controller_have_no_relay_option(
+    hass: HomeAssistant,
+) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=SERIAL, data=entry_data(**{CONF_HAS_ENPOWER: False})
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert CONF_ALLOW_GRID_RELAY not in result["data_schema"].schema

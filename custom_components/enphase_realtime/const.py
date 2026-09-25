@@ -23,6 +23,8 @@ CONF_CLOUD_INTERVAL = "cloud_interval"
 CONF_ENABLE_STREAM = "enable_stream"
 CONF_COUNTRY = "country"
 CONF_TIME_ZONE = "time_zone"
+# Off by default: opening the relay by accident can't be undone remotely (spec 6.3).
+CONF_ALLOW_GRID_RELAY = "allow_grid_relay_control"
 
 DEFAULT_HOST = "envoy.local"
 DEFAULT_LIVE_INTERVAL = 1
@@ -31,6 +33,7 @@ DEFAULT_FAST_INTERVAL = 5
 DEFAULT_STREAM_INTERVAL = 0
 DEFAULT_CLOUD_INTERVAL = 300
 DEFAULT_ENABLE_STREAM = True
+DEFAULT_ALLOW_GRID_RELAY = False
 
 SLOW_INTERVAL = timedelta(seconds=60)
 # Stream entities go unavailable after this long without a frame (spec 3.1).

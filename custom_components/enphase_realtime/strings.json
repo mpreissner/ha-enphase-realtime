@@ -63,13 +63,15 @@
           "cloud_interval": "Cloud poll interval",
           "enable_stream": "Use the real-time meter stream",
           "country": "Country",
-          "time_zone": "Time zone"
+          "time_zone": "Time zone",
+          "allow_grid_relay_control": "Allow switching the grid relay"
         },
         "data_description": {
           "live_interval": "How often to read battery, grid, load and PV power and the grid relay from the Envoy.",
           "fast_interval": "How often to read battery charge, energy and mode from the Envoy.",
           "stream_interval": "Stream readings arrive about every second. 0 updates entities with every reading; a higher value updates them at most that often, which writes less to the recorder.",
-          "cloud_interval": "How often to read battery settings from Enphase's servers."
+          "cloud_interval": "How often to read battery settings from Enphase's servers.",
+          "allow_grid_relay_control": "Creates a \"Grid enabled\" switch that takes the house off the grid and back. Off the grid, the house runs from the battery until it is switched back on, and that can't be done remotely if Home Assistant or the network goes down with it."
         }
       }
     }
@@ -86,6 +88,15 @@
     },
     "write_auth_failed": {
       "message": "Enphase refused the saved login, so the change wasn't sent. Log in again from the integration's reauthentication prompt."
+    },
+    "relay_write_failed": {
+      "message": "The Envoy didn't accept the grid relay change: {error}"
+    },
+    "grid_check_failed": {
+      "message": "Couldn't ask Enphase whether the grid can be switched now, so the relay wasn't changed: {error}"
+    },
+    "grid_control_blocked": {
+      "message": "Enphase says the grid can't be switched right now ({reasons}), so the relay wasn't changed."
     }
   }
 }
