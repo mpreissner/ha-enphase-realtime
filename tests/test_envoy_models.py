@@ -219,6 +219,7 @@ def test_secctrl() -> None:
     )
     assert sec.very_low_soc == 10
     assert sec.configured_backup_soc == 100
+    assert sec.adjusted_backup_soc == 100
 
 
 def test_secctrl_malformed() -> None:

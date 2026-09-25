@@ -42,12 +42,13 @@ async def test_setup_creates_entities(
     registry = er.async_get(hass)
     entities = er.async_entries_for_config_entry(registry, config_entry.entry_id)
     assert len(entities) > 30
-    assert len({e.unique_id for e in entities}) == len(entities)
+    # Unique IDs are per platform: a sensor and a number may share a key.
+    assert len({(e.domain, e.unique_id) for e in entities}) == len(entities)
 
     for platform, key in [
-        ("sensor", "production_power"),
+        ("sensor", "current_power_production"),
         ("sensor", "grid_power"),
-        ("sensor", "battery_power"),
+        ("sensor", "current_battery_discharge"),
         ("sensor", "battery_soc"),
         ("sensor", "storage_mode"),
         ("binary_sensor", "grid_status"),
@@ -69,6 +70,55 @@ async def test_setup_creates_entities(
     assert await hass.config_entries.async_unload(config_entry.entry_id)
     await hass.async_block_till_done()
     assert config_entry.state is ConfigEntryState.NOT_LOADED
+
+
+async def test_entity_ids_match_the_core_integration(
+    hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
+) -> None:
+    """Moving from the core integration keeps entity IDs, and with them history (MIGRATION.md)."""
+    await _setup(hass, config_entry)
+    slow = config_entry.runtime_data.slow.data
+    assert slow.inventory is not None
+    battery = slow.inventory.batteries[0].serial
+    sc = slow.inventory.system_controllers[0].serial
+    inverter = slow.inverters[0].serial
+    envoy = f"envoy_{SERIAL}"
+    entries = er.async_entries_for_config_entry(er.async_get(hass), config_entry.entry_id)
+    ids = {e.entity_id for e in entries}
+    expected = {
+        f"sensor.{envoy}_current_power_production",
+        f"sensor.{envoy}_current_power_consumption",
+        f"sensor.{envoy}_current_net_power_consumption",
+        f"sensor.{envoy}_current_power_production_l1",
+        f"sensor.{envoy}_current_battery_discharge",
+        f"sensor.{envoy}_lifetime_energy_production",
+        f"sensor.{envoy}_lifetime_energy_consumption",
+        f"sensor.{envoy}_lifetime_net_energy_consumption",
+        f"sensor.{envoy}_lifetime_net_energy_production",
+        f"sensor.{envoy}_lifetime_battery_energy_charged",
+        f"sensor.{envoy}_lifetime_battery_energy_discharged",
+        f"sensor.{envoy}_battery",
+        f"sensor.{envoy}_available_battery_energy",
+        f"sensor.{envoy}_battery_capacity",
+        f"sensor.{envoy}_reserve_battery_energy",
+        f"sensor.{envoy}_reserve_battery_level",
+        f"sensor.{envoy}_voltage_net_consumption_ct_l1",
+        f"sensor.{envoy}_frequency_net_consumption_ct",
+        f"sensor.{envoy}_net_consumption_ct_current_l1",
+        f"sensor.{envoy}_power_factor_net_consumption_ct_l1",
+        f"switch.{envoy}_charge_from_grid",
+        f"sensor.encharge_{battery}_battery",
+        f"sensor.encharge_{battery}_temperature",
+        f"sensor.encharge_{battery}_last_reported",
+        f"binary_sensor.encharge_{battery}_communicating",
+        f"binary_sensor.encharge_{battery}_dc_switch",
+        f"sensor.enpower_{sc}_temperature",
+        f"binary_sensor.enpower_{sc}_grid_status",
+        f"number.enpower_{sc}_reserve_battery_level",
+        f"sensor.inverter_{inverter}",
+        f"sensor.inverter_{inverter}_last_reported",
+    }
+    assert expected - ids == set()
 
 
 async def test_child_devices_hang_off_the_envoy(
@@ -98,7 +148,7 @@ async def test_without_stream_falls_back_to_livedata(
     fake.stream_available = False
     await _setup(hass, config_entry)
     assert config_entry.runtime_data.stream is None
-    assert _entity_id(hass, "sensor", "production_power") is None
+    assert _entity_id(hass, "sensor", "current_power_production") is None
     # The per-phase livedata fallbacks exist (disabled by default).
     registry = er.async_get(hass)
     keys = {

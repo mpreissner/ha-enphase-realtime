@@ -274,6 +274,8 @@ class SecCtrl:
     backup_energy: int | None
     very_low_soc: int
     configured_backup_soc: int
+    # The reserve the Envoy applies now; differs from the configured one, e.g. during Storm Guard.
+    adjusted_backup_soc: int | None
 
     @classmethod
     def from_payload(cls, data: Any) -> SecCtrl:
@@ -286,6 +288,7 @@ class SecCtrl:
                 backup_energy=data.get("ENC_agg_backup_energy"),
                 very_low_soc=data["VLS_Limit"],
                 configured_backup_soc=data["configured_backup_soc"],
+                adjusted_backup_soc=data.get("adjusted_backup_soc"),
             )
 
 

@@ -45,7 +45,7 @@ async def _setup(hass: HomeAssistant, entry: MockConfigEntry) -> tuple[str | Non
     assert await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
     return _entity_id(hass, "switch", "allow_charge_from_grid"), _entity_id(
-        hass, "number", "very_low_soc"
+        hass, "number", "battery_shutdown_level"
     )
 
 
@@ -297,7 +297,7 @@ async def test_backup_reserve_unavailable_in_full_backup(
 ) -> None:
     # The reference site is in Full Backup, where the cloud pins the reserve at 100.
     await _setup(hass, config_entry)
-    number = _entity_id(hass, "number", "backup_reserve")
+    number = _entity_id(hass, "number", "reserve_battery_level")
     assert number is not None
     state = hass.states.get(number)
     assert state is not None
@@ -310,7 +310,7 @@ async def test_backup_reserve_confirmed(
     fake.battery_settings_overrides = {"profile": "self-consumption", "batteryBackupPercentage": 30}
     fake.envoy_overrides[SECCTRL] = {"configured_backup_soc": 30}
     await _setup(hass, config_entry)
-    number = _entity_id(hass, "number", "backup_reserve")
+    number = _entity_id(hass, "number", "reserve_battery_level")
     assert number is not None
     state = hass.states.get(number)
     assert state is not None

@@ -56,18 +56,18 @@ async def test_live_entities_ride_out_two_failures(
 ) -> None:
     await _setup(hass, config_entry)
     live = config_entry.runtime_data.live
-    before = _state(hass, "sensor", "battery_power")
+    before = _state(hass, "sensor", "current_battery_discharge")
     assert before != STATE_UNAVAILABLE
 
     fake.envoy_errors[LIVEDATA] = EnvoyConnectionError("timeout")
     for _ in range(2):
         await _live_tick(hass, config_entry)
         assert not live.last_update_success
-        assert _state(hass, "sensor", "battery_power") == before
+        assert _state(hass, "sensor", "current_battery_discharge") == before
         assert _state(hass, "binary_sensor", "grid_status") == STATE_ON
 
     await _live_tick(hass, config_entry)
-    assert _state(hass, "sensor", "battery_power") == STATE_UNAVAILABLE
+    assert _state(hass, "sensor", "current_battery_discharge") == STATE_UNAVAILABLE
     assert _state(hass, "binary_sensor", "grid_status") == STATE_UNAVAILABLE
     # Other coordinators' entities are untouched.
     assert _state(hass, "sensor", "battery_soc") != STATE_UNAVAILABLE
@@ -75,7 +75,7 @@ async def test_live_entities_ride_out_two_failures(
     del fake.envoy_errors[LIVEDATA]
     await _live_tick(hass, config_entry)
     assert live.failed_polls == 0
-    assert _state(hass, "sensor", "battery_power") == before
+    assert _state(hass, "sensor", "current_battery_discharge") == before
 
 
 async def test_grid_status_follows_the_live_relay(
@@ -124,7 +124,7 @@ async def test_failed_sc_stream_enable_does_not_fail_the_poll(
     fake.envoy_errors[ENABLE] = EnvoyConnectionError("HTTP 500")
     await _setup(hass, config_entry)
     assert config_entry.runtime_data.live.last_update_success
-    assert _state(hass, "sensor", "battery_power") != STATE_UNAVAILABLE
+    assert _state(hass, "sensor", "current_battery_discharge") != STATE_UNAVAILABLE
 
 
 async def test_live_interval_option(hass: HomeAssistant, fake: FakeEnphase) -> None:
