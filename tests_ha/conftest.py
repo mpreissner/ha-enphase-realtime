@@ -87,6 +87,7 @@ class FakeEnphase:
     # Fields merged over a fixture, so a test can move a local value (e.g. after a write).
     envoy_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
     site_settings_overrides: dict[str, Any] = field(default_factory=dict)
+    battery_settings_overrides: dict[str, Any] = field(default_factory=dict)
     # Local POSTs as (path, body).
     envoy_posts: list[tuple[str, Any]] = field(default_factory=list)
     # Cloud writes as (method, path, body), and an error to raise instead of accepting them.
@@ -174,7 +175,9 @@ class FakeEnphase:
         if "/batterySettings/" in path:
             if self.battery_settings_error is not None:
                 raise self.battery_settings_error
-            return load_json("cloud_battery_settings.json")
+            payload = load_json("cloud_battery_settings.json")
+            payload["data"].update(self.battery_settings_overrides)
+            return payload
         raise EnlightenError(f"unexpected {method} {path}")
 
     async def fetch_owner_token(self, http: Any, **_: Any) -> OwnerToken:
