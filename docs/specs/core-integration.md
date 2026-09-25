@@ -353,7 +353,7 @@ stream is off.
 | Lifetime grid import and export | L readings, net-consumption meter: `actEnergyDlvd` = import, `actEnergyRcvd` = export | `lifetime_net_energy_*` |
 | Lifetime consumption | L `/ivp/meters/reports`, `total-consumption` `cumulative.whDlvdCum` | `lifetime_energy_*` |
 | Lifetime battery charged and discharged | L readings, storage meter (which field is which: spike S5) | `lifetime_battery_energy_*` |
-| Energy today, energy last 7 days | **Dropped** | The Envoy only has these in the slow `production.json`. Use HA's `utility_meter` or the Energy dashboard on the lifetime counters (spike S5 checks this) |
+| Energy today, energy last 7 days | **Dropped** | The Envoy only has these in the slow `production.json`. Use HA's `utility_meter` or the Energy dashboard on the lifetime counters |
 
 **Why two endpoints.** Neither one has everything:
 
@@ -564,7 +564,7 @@ Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`.
 | S2 | How to get `site_id` and `user_id` from a session | **Settled:** `login.json` returns `system_id` (the site ID in every batteryConfig path) and `manager_token`, whose `data.user_id` is the `userId`/`Username` value. `search_sites` stays as the multi-site fallback; it is still empty in about half of calls |
 | S3 | Does `batteryBackupPercentage` show locally as `secctrl.configured_backup_soc`? (The PUT itself is proven by the shutdown-level test.) | One change in Self-Consumption, e.g. 30 → 32 and back, with the user watching. If confirmation fails but the change took effect, the confirm field is wrong |
 | S4 | Does `POST /ivp/ensemble/relay` work with an owner token on D8.3.6086? | Only with the user present, battery SoC above 50%, and an immediate restore |
-| S5 | Do `/ivp/meters/readings` and `reports` lifetime counters match the core's lifetime values, and are they monotonic? Which storage field is charged and which discharged? (Reference site: `actEnergyDlvd` 626 Wh, `actEnergyRcvd` 13,560 Wh, on a new battery that spent the test day charging from grid, which suggests `Rcvd` = charged) | Compare during the phase 2 side-by-side run; check which storage counter rises while `agg_p_mw` is negative |
+| S5 | Do `/ivp/meters/readings` and `reports` lifetime counters match the core's lifetime values, and are they monotonic? Which storage field is charged and which discharged? (Reference site: `actEnergyDlvd` 626 Wh, `actEnergyRcvd` 13,560 Wh, on a new battery that spent the test day charging from grid, which suggests `Rcvd` = charged) | **Settled (25 September 2026):** all six lifetime counters match the core integration's on the reference site (production 742.84 kWh, consumption 1,530.2, import 1,158.6, export 371.25, battery charged 15.39, discharged 0.63). `actEnergyRcvd` is charged, as core has it. Production + import − export equals consumption exactly, and the counters only rose between restarts |
 | S6 | Dry-contact mapping (which contact switches the AC, which the dryer) | User task. Writes stay out of scope until it's done |
 | S7 | Is it worth adding the `mqttSignedUrl` AWS IoT stream as a push source for cloud state (to replace the 300 s poll)? | Revisit after phase 3 |
 | S8 | Outside the US: do the same Enlighten and Entrez hosts work, which charge-from-grid disclaimer type (if any) is needed, and what do `showChargeFromGrid` and `restrictCfg` look like? | Needs a non-US tester. Until then, the conservative gating in 3.3 applies |
