@@ -230,7 +230,7 @@ def test_secctrl_malformed() -> None:
 def test_schedule_reference() -> None:
     sched = Schedule.from_payload(load_json("ivp_sc_sched.json"))
     assert sched.mode_index == 6
-    assert sched.mode == "CP"
+    assert sched.mode == "Charge From PV"
     assert sched.mode_label == "CP - Charge From PV"
     assert sched.charge_from_grid_allowed is True
     assert sched.reserve_energy == 500
@@ -238,7 +238,8 @@ def test_schedule_reference() -> None:
 
 
 @pytest.mark.parametrize(
-    ("index", "mode"), [(0, "ID"), (2, "CG"), (7, "HEMS Discharge"), (42, None), (-1, None)]
+    ("index", "mode"),
+    [(0, "Idle"), (2, "Charge From Grid"), (7, "HEMS Discharge"), (42, None), (-1, None)],
 )
 def test_schedule_mode_labels(index: int, mode: str | None) -> None:
     data = load_json("ivp_sc_sched.json")
@@ -247,18 +248,14 @@ def test_schedule_mode_labels(index: int, mode: str | None) -> None:
 
 
 @pytest.mark.parametrize(
-    ("admin", "oper", "connected", "outage"),
-    [
-        ("closed", "closed", True, False),
-        ("closed", "open", False, True),  # grid lost
-        ("open", "open", False, False),  # deliberately off-grid
-    ],
+    ("admin", "oper", "connected"),
+    [("closed", "closed", True), ("closed", "open", False), ("open", "open", False)],
 )
-def test_relay(admin: str, oper: str, connected: bool, outage: bool) -> None:
+def test_relay(admin: str, oper: str, connected: bool) -> None:
     data = load_json("ivp_ensemble_relay.json")
     data.update(mains_admin_state=admin, mains_oper_state=oper)
     relay = Relay.from_payload(data)
-    assert (relay.grid_connected, relay.grid_outage) == (connected, outage)
+    assert relay.grid_connected is connected
 
 
 # --- inventory, dry contacts, inverters ---------------------------------------------------------

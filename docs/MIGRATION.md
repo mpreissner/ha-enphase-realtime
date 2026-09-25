@@ -69,38 +69,6 @@ update the unit. The old statistics are kept.
 Then check the **Energy dashboard** (**Settings → Dashboards → Energy**): its sources should
 point to the lifetime sensors above.
 
-## 4. Repoint grid-outage automations
-
-The core integration has no outage sensor, so outage automations usually compare two entities:
-the grid is enabled (the relay has been told to stay closed) but the grid status is off (the
-relay is open). Enphase Realtime has that as one binary sensor,
-`binary_sensor.enpower_<sc>_grid_outage`, updated on the live poll (every second by default).
-
-Replace a trigger like this:
-
-```yaml
-triggers:
-  - trigger: state
-    entity_id: binary_sensor.enpower_<sc>_grid_status
-    to: "off"
-conditions:
-  - condition: state
-    entity_id: switch.enpower_<sc>_grid_enabled
-    state: "on"
-```
-
-with:
-
-```yaml
-triggers:
-  - trigger: state
-    entity_id: binary_sensor.enpower_<sc>_grid_outage
-    to: "on"
-```
-
-and the "grid is back" side with `to: "off"`. A grid outage that you started yourself, by
-turning **Grid enabled** off, doesn't count as an outage.
-
 ## What doesn't carry over
 
 - **Energy today and last 7 days.** This integration doesn't create these. Use the Energy

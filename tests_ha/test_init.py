@@ -52,7 +52,6 @@ async def test_setup_creates_entities(
         ("sensor", "battery_soc"),
         ("sensor", "storage_mode"),
         ("binary_sensor", "grid_status"),
-        ("binary_sensor", "charge_from_grid"),
         ("binary_sensor", "pending_cloud_change"),
     ]:
         entity_id = _entity_id(hass, platform, key)

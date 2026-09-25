@@ -82,12 +82,11 @@ async def test_grid_status_follows_the_live_relay(
     hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
 ) -> None:
     await _setup(hass, config_entry)
-    assert _state(hass, "binary_sensor", "grid_outage") == STATE_OFF
+    assert _state(hass, "binary_sensor", "grid_status") == STATE_ON
 
     fake.envoy_overrides[RELAY] = {"mains_oper_state": "open"}
     await _live_tick(hass, config_entry)
     assert _state(hass, "binary_sensor", "grid_status") == STATE_OFF
-    assert _state(hass, "binary_sensor", "grid_outage") == STATE_ON
 
 
 async def test_sc_stream_enabled_sends_nothing(

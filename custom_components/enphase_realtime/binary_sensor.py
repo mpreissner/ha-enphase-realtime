@@ -42,26 +42,12 @@ def _relay(d: LiveFeed):
     return d.relay
 
 
-_FAST = (
-    EnphaseBinarySensorDescription(
-        key="charge_from_grid",
-        name="Charge from grid in effect",
-        value_fn=lambda d: d.schedule.charge_from_grid_allowed,
-    ),
-)
-
 _ENPOWER_LIVE = (
     EnphaseBinarySensorDescription(
         key="grid_status",
         name="Grid status",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         value_fn=lambda d: _relay(d).grid_connected,
-    ),
-    EnphaseBinarySensorDescription(
-        key="grid_outage",
-        name="Grid outage",
-        device_class=BinarySensorDeviceClass.PROBLEM,
-        value_fn=lambda d: _relay(d).grid_outage,
     ),
 )
 
@@ -149,8 +135,6 @@ async def async_setup_entry(
     envoy = envoy_device(rt.serial, rt.firmware)
     entities: list[EnphaseBinarySensor] = []
 
-    if rt.fast is not None:
-        entities += [EnphaseBinarySensor(rt.fast, d, envoy, rt.serial) for d in _FAST]
     slow = rt.slow.data
     if rt.hardware.has_enpower:
         controllers = slow.inventory.system_controllers if slow.inventory is not None else []

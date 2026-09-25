@@ -73,8 +73,7 @@ Envoy reports that the relay has actually moved, and marks it `confirmation: con
 `failed` if it hasn't moved after 30 s.
 
 The switch shows what the relay has been told. For whether the house is actually on the grid, use
-the **Grid status** binary sensor on the IQ System Controller device; **Grid outage**, next to
-it, turns on when the relay is told to stay on the
-grid but is open, which is what an outage looks like.
+the **Grid status** binary sensor on the IQ System Controller device. Grid status off with Grid
+enabled on means the grid has gone.
 
 **Status:** pre-alpha, not yet functional.

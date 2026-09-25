@@ -94,8 +94,8 @@ custom_components/enphase_realtime/
 | Coordinator | Source | Default cadence | Feeds |
 |---|---|---|---|
 | `StreamCoordinator` | `GET /stream/meter` (server push, `data: {json}` lines, about 1 Hz) | every frame as it arrives (option: throttle to one write per 1–60 s, see 3.2) | Production, net-consumption and total-consumption power per phase; voltage, current, PF, frequency |
-| `LiveCoordinator` | `/ivp/livedata/status`, and `/ivp/ensemble/relay` on sites with a System Controller | 1 s (options: 1–60) | Battery, grid, load and PV power; relay states; grid status and grid outage |
-| `FastCoordinator` | `/ivp/ensemble/secctrl`, `/ivp/sc/sched` (sites with a battery; not created otherwise) | 5 s (options: 2–60) | SoC; available energy; controller mode; charge-from-grid in effect; battery shutdown level (`VLS_Limit`); local confirmation of cloud writes (6.1) |
+| `LiveCoordinator` | `/ivp/livedata/status`, and `/ivp/ensemble/relay` on sites with a System Controller | 1 s (options: 1–60) | Battery, grid, load and PV power; relay states; grid status |
+| `FastCoordinator` | `/ivp/ensemble/secctrl`, `/ivp/sc/sched` (sites with a battery; not created otherwise) | 5 s (options: 2–60) | SoC; available energy; controller mode; charge from grid; battery shutdown level (`VLS_Limit`); local confirmation of cloud writes (6.1) |
 | `SlowCoordinator` | `/ivp/meters`, `/ivp/meters/readings`, `/ivp/meters/reports`, `/ivp/ensemble/inventory`, `/ivp/ss/dry_contact_settings`, `/ivp/ensemble/dry_contacts`, `/api/v1/production/inverters` | 60 s | Meter layout (phase check, 3.3), lifetime energy counters, battery and System Controller health, dry-contact state, per-micro watts |
 | `CloudCoordinator` | `GET batterySettings/{site}` | 300 s, plus an immediate refresh after each write | Profile (storage mode), backup %, charge-from-grid, `veryLowSoc` and their limits, `pendingGateways` |
 
@@ -327,11 +327,11 @@ with `via_device_id`, its device registry ID.
 
 **Naming.** Where the core integration has the same entity, it gets the core's name and device,
 so the entity ID is the same and a move keeps its history without editing IDs
-(`docs/MIGRATION.md`). Grid status, grid outage, the grid relay switch and the reserve number
+(`docs/MIGRATION.md`). Grid status, the grid relay switch and the reserve number
 sit on the System Controller, as in core, and on the Envoy on a site without one. The
 Enphase-Envoy-mqtt-json add-on has no fixed names (users define their own MQTT sensors), so
 there's nothing to match there. Entities core doesn't have get plain names: Grid, Load and PV
-power, Grid outage, Battery shutdown level (the Enphase app's term).
+power, Battery shutdown level (the Enphase app's term).
 
 **Unique IDs:** `<serial>_<key>`, where the key is usually the entity ID's suffix. The grid
 entities and the reserve number keep the Envoy's serial even on the System Controller device.
@@ -400,8 +400,7 @@ aren't exposed in v1.
 | Reserve battery level (applied now) | F `secctrl.adjusted_backup_soc` | `reserve_battery_level` |
 | Configured reserve battery level | F `secctrl.configured_backup_soc` | `configured_reserve_battery_level` |
 | State of health | F `secctrl.ENC_agg_soh` | – (new) |
-| Controller mode (enum: ID, ZN, CG, DG, ND, DL, CP, …) | F `sc/sched.acb_current_mode`, labelled using `sched_mode_key` | – (new) |
-| Charge from grid in effect (binary) | F `sc/sched['Charge From Grid Allowed']` | – (new; this is the true value) |
+| Controller mode: what the batteries are doing now, e.g. `Charge From PV`, `Charge From Grid`, `Idle` | F `sc/sched.acb_current_mode`, an index into `sched_mode_key`; the part after the two-letter code | – (new) |
 | Per-battery: SoC, temperature, max cell temperature, communicating, DC switch, last reported, status | L `ensemble/inventory` ENCHARGE | `encharge_*` |
 | System Controller: communicating, temperature, last reported | L `ensemble/inventory` ENPOWER | `enpower_*` |
 | Storage mode (read-only sensor) | C `profile` | `storage_mode` select (writable in core; read-only here) |
@@ -424,7 +423,6 @@ nothing is pending, and it isn't a parse error.
 |---|---|---|
 | Grid status: on when the relay is actually closed | R `relay.mains_oper_state == "closed"` | `enpower_grid_status` |
 | Grid enabled switch | R `mains_admin_state`; write in 6.3 | `enpower_grid_enabled` |
-| Grid outage (binary, problem class): on when admin is closed but oper is open | R derived | – (new; this is the signature the existing HA automation already relies on) |
 
 ### 5.5 Microinverters
 
@@ -565,9 +563,8 @@ Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`.
    settled and a day at 1 s shows no Envoy errors or timeouts beyond the occasional miss.
 5. **Grid relay control** (once S4 passes) and a migration guide:
    - disable the core integration
-   - rename entity IDs to keep automations and history
-   - repoint automations that use the core grid-status entities (on the reference site,
-     `automation.grid_loss_circuit_shedding`) to the new grid outage binary sensor
+   - remove the `_2` suffixes to take over the core entity IDs, which keeps automations
+     (including ones on the core grid status and grid enabled entities) and history
 
 ## 10. Spikes and open questions
 

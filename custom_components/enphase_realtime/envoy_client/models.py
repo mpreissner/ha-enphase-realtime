@@ -294,7 +294,8 @@ class SecCtrl:
 
 @dataclass(frozen=True, slots=True)
 class Schedule:
-    """`/ivp/sc/sched`. `mode` is the short code (`CP`), or the full label if it has none."""
+    """`/ivp/sc/sched`. `mode` is the label's readable part (`Charge From PV` from
+    `CP - Charge From PV`), or the full label if it has no code."""
 
     mode_index: int
     mode: str | None
@@ -311,7 +312,7 @@ class Schedule:
             label = labels[index] if 0 <= index < len(labels) else None
             return cls(
                 mode_index=index,
-                mode=label.split(" - ", 1)[0] if label else None,
+                mode=label.split(" - ", 1)[-1] if label else None,
                 mode_label=label,
                 charge_from_grid_allowed=bool(data["Charge From Grid Allowed"]),
                 reserve_energy=data.get("Agg VLS Energy"),
@@ -327,11 +328,6 @@ class Relay:
     @property
     def grid_connected(self) -> bool:
         return self.oper_state == "closed"
-
-    @property
-    def grid_outage(self) -> bool:
-        """Told to stay on grid, but the relay is open: the grid has gone."""
-        return self.admin_state == "closed" and self.oper_state == "open"
 
     @classmethod
     def from_payload(cls, data: Any) -> Relay:
