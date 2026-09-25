@@ -53,7 +53,7 @@ such.
 | Slow, stale data | Polls `production.json` (30–55 s), `inventory.json` (~20 s) and `home.json` (over 60 s) every 60 s |
 | Charge-from-grid switch has no effect | pyenphase writes `/admin/lib/tariff`. On D8.3.6086 the file is saved but the controller ignores it (FINDINGS: "Local writes do not work") |
 | Reserve and storage-mode controls are unreliable | Same tariff path. They show values from a stale file that doesn't reflect the live settings |
-| No power-flow detail | Doesn't expose per-phase grid, load, PV and storage power from `livedata`, controller mode or setpoint |
+| No power-flow detail | Doesn't expose per-phase grid, load, PV and storage power from `livedata` |
 
 ## 3. Architecture
 
@@ -95,7 +95,7 @@ custom_components/enphase_realtime/
 |---|---|---|---|
 | `StreamCoordinator` | `GET /stream/meter` (server push, `data: {json}` lines, about 1 Hz) | every frame as it arrives (option: throttle to one write per 1–60 s, see 3.2) | Production, net-consumption and total-consumption power per phase; voltage, current, PF, frequency |
 | `LiveCoordinator` | `/ivp/livedata/status`, and `/ivp/ensemble/relay` on sites with a System Controller | 1 s (options: 1–60) | Battery, grid, load and PV power; relay states; grid status |
-| `FastCoordinator` | `/ivp/ensemble/secctrl`, `/ivp/sc/sched` (sites with a battery; not created otherwise) | 5 s (options: 2–60) | SoC; available energy; controller mode; charge from grid; battery shutdown level (`VLS_Limit`); local confirmation of cloud writes (6.1) |
+| `FastCoordinator` | `/ivp/ensemble/secctrl`, `/ivp/sc/sched` (sites with a battery; not created otherwise) | 5 s (options: 2–60) | SoC; available energy; charge from grid; battery shutdown level (`VLS_Limit`); local confirmation of cloud writes (6.1) |
 | `SlowCoordinator` | `/ivp/meters`, `/ivp/meters/readings`, `/ivp/meters/reports`, `/ivp/ensemble/inventory`, `/ivp/ss/dry_contact_settings`, `/ivp/ensemble/dry_contacts`, `/api/v1/production/inverters` | 60 s | Meter layout (phase check, 3.3), lifetime energy counters, battery and System Controller health, dry-contact state, per-micro watts |
 | `CloudCoordinator` | `GET batterySettings/{site}` | 300 s, plus an immediate refresh after each write | Profile (storage mode), backup %, charge-from-grid, `veryLowSoc` and their limits, `pendingGateways` |
 
@@ -400,7 +400,6 @@ aren't exposed in v1.
 | Reserve battery level (applied now) | F `secctrl.adjusted_backup_soc` | `reserve_battery_level` |
 | Configured reserve battery level | F `secctrl.configured_backup_soc` | `configured_reserve_battery_level` |
 | State of health | F `secctrl.ENC_agg_soh` | – (new) |
-| Controller mode: what the batteries are doing now, e.g. `Charge From PV`, `Charge From Grid`, `Idle` | F `sc/sched.acb_current_mode`, an index into `sched_mode_key`; the part after the two-letter code | – (new) |
 | Per-battery: SoC, temperature, max cell temperature, communicating, DC switch, last reported, status | L `ensemble/inventory` ENCHARGE | `encharge_*` |
 | System Controller: communicating, temperature, last reported | L `ensemble/inventory` ENPOWER | `enpower_*` |
 | Storage mode (read-only sensor) | C `profile` | `storage_mode` select (writable in core; read-only here) |

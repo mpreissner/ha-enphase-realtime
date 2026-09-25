@@ -286,12 +286,6 @@ def _fast_sensors() -> list[EnphaseSensorDescription]:
             "Battery state of health",
             lambda d: d.secctrl.state_of_health,
         ),
-        # A plain string: an enum would break on a mode code we haven't seen.
-        EnphaseSensorDescription(
-            key="controller_mode",
-            name="Controller mode",
-            value_fn=lambda d: d.schedule.mode,
-        ),
     ]
 
 

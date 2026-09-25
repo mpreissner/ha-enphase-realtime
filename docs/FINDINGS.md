@@ -20,7 +20,7 @@ Base `https://<envoy>/`, header `Authorization: Bearer <owner JWT>`, self-signed
 | What | Endpoint | Field |
 |---|---|---|
 | Charge-from-grid in effect | `/ivp/sc/sched` | `"Charge From Grid Allowed"` (bool) |
-| Controller mode | `/ivp/sc/sched` | `acb_current_mode`: 2 = CG (charge from grid), 6 = CP (charge from PV) |
+| Controller mode | `/ivp/sc/sched` | `acb_current_mode`, an index into `sched_mode_key` (2 = CG, 6 = CP). Not a live status: on 2026-09-25 it still read CG a day after charge from grid was turned off, with the battery at 0 W. Not exposed. |
 | Commanded setpoint | `/ivp/sc/status` | `response.groups[ENC].setpoint_val` (-100 = full charge, 0 = idle); `acbstats.encharge_feedback.raw_setpt` |
 | Reserve (very-low SoC) | `/ivp/ensemble/secctrl` | `VLS_Limit` (%) = cloud `veryLowSoc` |
 | Backup SoC target | `/ivp/ensemble/secctrl` | `configured_backup_soc`, `adjusted_backup_soc` |

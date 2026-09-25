@@ -294,12 +294,9 @@ class SecCtrl:
 
 @dataclass(frozen=True, slots=True)
 class Schedule:
-    """`/ivp/sc/sched`. `mode` is the label's readable part (`Charge From PV` from
-    `CP - Charge From PV`), or the full label if it has no code."""
+    """`/ivp/sc/sched`. Its `acb_current_mode` isn't read: it keeps the last commanded mode
+    (e.g. Charge From Grid) after the battery has stopped (docs/FINDINGS.md)."""
 
-    mode_index: int
-    mode: str | None
-    mode_label: str | None
     charge_from_grid_allowed: bool
     reserve_energy: int | None
     battery_count: int | None
@@ -307,13 +304,7 @@ class Schedule:
     @classmethod
     def from_payload(cls, data: Any) -> Schedule:
         with _parsing("/ivp/sc/sched"):
-            index = int(data["acb_current_mode"])
-            labels = data.get("sched_mode_key") or []
-            label = labels[index] if 0 <= index < len(labels) else None
             return cls(
-                mode_index=index,
-                mode=label.split(" - ", 1)[-1] if label else None,
-                mode_label=label,
                 charge_from_grid_allowed=bool(data["Charge From Grid Allowed"]),
                 reserve_energy=data.get("Agg VLS Energy"),
                 battery_count=data.get("Num_of_enc"),

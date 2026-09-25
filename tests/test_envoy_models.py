@@ -229,22 +229,9 @@ def test_secctrl_malformed() -> None:
 
 def test_schedule_reference() -> None:
     sched = Schedule.from_payload(load_json("ivp_sc_sched.json"))
-    assert sched.mode_index == 6
-    assert sched.mode == "Charge From PV"
-    assert sched.mode_label == "CP - Charge From PV"
     assert sched.charge_from_grid_allowed is True
     assert sched.reserve_energy == 500
     assert sched.battery_count == 1
-
-
-@pytest.mark.parametrize(
-    ("index", "mode"),
-    [(0, "Idle"), (2, "Charge From Grid"), (7, "HEMS Discharge"), (42, None), (-1, None)],
-)
-def test_schedule_mode_labels(index: int, mode: str | None) -> None:
-    data = load_json("ivp_sc_sched.json")
-    data["acb_current_mode"] = index
-    assert Schedule.from_payload(data).mode == mode
 
 
 @pytest.mark.parametrize(
