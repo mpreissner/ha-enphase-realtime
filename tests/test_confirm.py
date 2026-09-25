@@ -5,7 +5,13 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from confirm import CONFIRM_TIMEOUT, Confirmation, LocalConfirm, confirmation_state
+from confirm import (
+    CONFIRM_TIMEOUT,
+    RELAY_CONFIRM_TIMEOUT,
+    Confirmation,
+    LocalConfirm,
+    confirmation_state,
+)
 
 T0 = datetime(2026, 9, 24, 12, 0, tzinfo=UTC)
 
@@ -76,3 +82,11 @@ def test_new_write_restarts_the_clock() -> None:
     assert confirm.check(15, T0 + timedelta(seconds=100)) is None
     assert confirm.shown(15) == 20
     assert confirm.check(20, T0 + timedelta(seconds=110)) is Confirmation.CONFIRMED
+
+
+def test_relay_uses_its_own_30_second_timeout() -> None:
+    confirm: LocalConfirm[bool] = LocalConfirm(timeout=RELAY_CONFIRM_TIMEOUT)
+    confirm.start(False, T0)
+    assert confirm.check(True, T0 + timedelta(seconds=29)) is None
+    assert confirm.check(True, T0 + timedelta(seconds=30)) is Confirmation.FAILED
+    assert confirm.shown(True) is True

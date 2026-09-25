@@ -92,6 +92,10 @@ class FakeEnphase:
     # Cloud writes as (method, path, body), and an error to raise instead of accepting them.
     writes: list[tuple[str, str, Any]] = field(default_factory=list)
     write_error: EnlightenError | None = None
+    # grid_control_check.json: flags merged over the fixture, or an error; and a call count.
+    grid_check_overrides: dict[str, bool] = field(default_factory=dict)
+    grid_check_error: EnlightenError | None = None
+    grid_checks: int = 0
     stream_available: bool = True
     token: str = field(default_factory=owner_token)
     stream_frames: list[StreamFrame] = field(default_factory=list)
@@ -151,6 +155,11 @@ class FakeEnphase:
     ) -> Any:
         if path.endswith("/search_sites.json"):
             return {"sites": [{"id": i, "title": f"Site {i}"} for i in self.site_ids]}
+        if path.endswith("/grid_control_check.json"):
+            self.grid_checks += 1
+            if self.grid_check_error is not None:
+                raise self.grid_check_error
+            return load_json("cloud_grid_control_check.json") | self.grid_check_overrides
         if "/siteSettings/" in path:
             payload = load_json("cloud_site_settings.json")
             payload["data"].update(self.site_settings_overrides)

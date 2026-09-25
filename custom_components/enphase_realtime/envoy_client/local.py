@@ -134,6 +134,13 @@ class EnvoyClient:
     async def relay(self) -> Relay:
         return Relay.from_payload(await self.get_json("/ivp/ensemble/relay", LIVE_TIMEOUT))
 
+    async def set_relay(self, closed: bool) -> None:
+        """Tell the System Controller to close (on grid) or open (off grid) the main relay. The
+        reply isn't used; the live poll's `mains_admin_state` and `mains_oper_state` confirm it
+        (spec 6.3)."""
+        state = "closed" if closed else "open"
+        await self.post_json("/ivp/ensemble/relay", {"mains_admin_state": state})
+
     async def enable_livedata_stream(self) -> None:
         """Ask the System Controller to keep `livedata` fresh (`sc_stream`, spec 3.1). The
         reply isn't used."""

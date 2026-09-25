@@ -13,6 +13,8 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 
 CONFIRM_TIMEOUT = timedelta(seconds=90)
+# The grid relay is local, so it has no cloud lag to wait out (spec 6.3).
+RELAY_CONFIRM_TIMEOUT = timedelta(seconds=30)
 
 
 class Confirmation(StrEnum):
@@ -40,6 +42,7 @@ def confirmation_state(
 class LocalConfirm[T]:
     """One control's confirmation. `shown` is what the entity's state should be."""
 
+    timeout: timedelta = CONFIRM_TIMEOUT
     requested: T | None = None
     started: datetime | None = None
     status: Confirmation | None = None
@@ -58,7 +61,7 @@ class LocalConfirm[T]:
         it (confirmed or failed), `None` otherwise."""
         if not self.pending or self.started is None:
             return None
-        status = confirmation_state(self.requested, local, now - self.started)
+        status = confirmation_state(self.requested, local, now - self.started, self.timeout)
         if status is Confirmation.PENDING:
             return None
         self.status = status

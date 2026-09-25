@@ -28,6 +28,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    CONF_ALLOW_GRID_RELAY,
     CONF_CLOUD_INTERVAL,
     CONF_COUNTRY,
     CONF_ENABLE_STREAM,
@@ -42,6 +43,7 @@ from .const import (
     CONF_STREAM_INTERVAL,
     CONF_TIME_ZONE,
     CONF_TOKEN,
+    DEFAULT_ALLOW_GRID_RELAY,
     DEFAULT_CLOUD_INTERVAL,
     DEFAULT_ENABLE_STREAM,
     DEFAULT_FAST_INTERVAL,
@@ -464,20 +466,22 @@ class EnphaseRealtimeOptionsFlow(OptionsFlow):
             )
 
         options = self.config_entry.options
+        fields: dict[Any, Any] = {
+            vol.Required(CONF_LIVE_INTERVAL): _interval(1, 60),
+            vol.Required(CONF_FAST_INTERVAL): _interval(2, 60),
+            vol.Required(CONF_STREAM_INTERVAL): _interval(0, 60),
+            vol.Required(CONF_CLOUD_INTERVAL): _interval(60, 3600),
+            vol.Required(CONF_ENABLE_STREAM): bool,
+            vol.Required(CONF_COUNTRY): CountrySelector(),
+            vol.Required(CONF_TIME_ZONE): await _time_zone_selector(self.hass),
+        }
+        # Only a System Controller has a grid relay to switch (spec 6.3).
+        if self.config_entry.data.get(CONF_HAS_ENPOWER):
+            fields[vol.Required(CONF_ALLOW_GRID_RELAY)] = bool
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
-                vol.Schema(
-                    {
-                        vol.Required(CONF_LIVE_INTERVAL): _interval(1, 60),
-                        vol.Required(CONF_FAST_INTERVAL): _interval(2, 60),
-                        vol.Required(CONF_STREAM_INTERVAL): _interval(0, 60),
-                        vol.Required(CONF_CLOUD_INTERVAL): _interval(60, 3600),
-                        vol.Required(CONF_ENABLE_STREAM): bool,
-                        vol.Required(CONF_COUNTRY): CountrySelector(),
-                        vol.Required(CONF_TIME_ZONE): await _time_zone_selector(self.hass),
-                    }
-                ),
+                vol.Schema(fields),
                 {
                     CONF_LIVE_INTERVAL: options.get(CONF_LIVE_INTERVAL, DEFAULT_LIVE_INTERVAL),
                     CONF_FAST_INTERVAL: options.get(CONF_FAST_INTERVAL, DEFAULT_FAST_INTERVAL),
@@ -488,6 +492,9 @@ class EnphaseRealtimeOptionsFlow(OptionsFlow):
                     CONF_ENABLE_STREAM: options.get(CONF_ENABLE_STREAM, DEFAULT_ENABLE_STREAM),
                     CONF_COUNTRY: options.get(CONF_COUNTRY, self.hass.config.country),
                     CONF_TIME_ZONE: options.get(CONF_TIME_ZONE, self.hass.config.time_zone),
+                    CONF_ALLOW_GRID_RELAY: options.get(
+                        CONF_ALLOW_GRID_RELAY, DEFAULT_ALLOW_GRID_RELAY
+                    ),
                 },
             ),
         )

@@ -7,10 +7,13 @@ Controller and IQ Battery sites.
   load, PV and battery power and the grid relay are polled every second from the Envoy's fast
   `/ivp/*` endpoints. Battery and controller state are polled every few seconds. Nothing is
   read from the slow legacy pages.
-- **Local control** for the settings the Envoy accepts locally.
+- **Local control** for the settings the Envoy accepts locally: the IQ System Controller's
+  grid relay, off by default (see [Grid relay](#grid-relay)).
 - **Cloud control** for the settings it doesn't, such as the battery's charge-from-grid and
   reserve. Every cloud write is confirmed from the local Envoy values, because the cloud only
   updates its own view when the Envoy next reports in.
+
+Coming from the core integration? See [docs/MIGRATION.md](docs/MIGRATION.md).
 
 See [docs/specs/core-integration.md](docs/specs/core-integration.md) for the design and
 [docs/FINDINGS.md](docs/FINDINGS.md) for the protocol notes.
@@ -55,5 +58,24 @@ Home Assistant, your automation and the switch or relay it drives. An IQ Battery
 overload limit faster than that. Treat automations as a way to avoid reaching the limit, not as
 overload protection: for loads that must never trip the battery, use hardware load control
 (the IQ System Controller's load-control relays, or a smart panel).
+
+## Grid relay
+
+On a site with an IQ System Controller, the option **Allow switching the grid relay** creates a
+**Grid enabled** switch on the System Controller. Off opens the main relay and the house runs
+from the battery; on closes it again. The option is off by default: if the house is taken off
+the grid by mistake and Home Assistant or the network goes down with it, it can't be put back
+remotely, and the battery keeps draining until someone switches it back at the System
+Controller or in the Enphase app.
+
+Before every write the integration asks Enphase the same question the app asks
+(`grid_control_check`). If Enphase flags anything, or can't be reached, the relay isn't touched
+and the service call fails with the reason. The switch then shows the requested state until the
+Envoy reports that the relay has actually moved, and marks it `confirmation: confirmed`, or
+`failed` if it hasn't moved after 30 s.
+
+The switch shows what the relay has been told. For whether the house is actually on the grid, use
+the **Grid status** binary sensor; **Grid outage** turns on when the relay is told to stay on the
+grid but is open, which is what an outage looks like.
 
 **Status:** pre-alpha, not yet functional.
