@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.sensor import (
+    RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
     SensorStateClass,
 )
 from homeassistant.const import (
+    ATTR_UNIT_OF_MEASUREMENT,
     PERCENTAGE,
     EntityCategory,
     UnitOfElectricCurrent,
@@ -21,14 +25,22 @@ from homeassistant.const import (
     UnitOfFrequency,
     UnitOfPower,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from . import EnphaseConfigEntry
-from .const import BATTERY_TEMPERATURE_UNIT, ENPOWER_TEMPERATURE_UNIT, PHASE_NAMES
-from .coordinator import FastData, LiveFeed, SlowData
+from .const import (
+    BATTERY_TEMPERATURE_UNIT,
+    CONF_BACKUP_LOAD_ENTITY,
+    DOMAIN,
+    ENPOWER_TEMPERATURE_UNIT,
+    OVERHEAD_STALE_LOG_AFTER,
+    PHASE_NAMES,
+)
+from .coordinator import FastData, LiveCoordinator, LiveFeed, SlowData
 from .entity import (
     IQ_BATTERY,
     IQ_MICROINVERTER,
@@ -39,6 +51,9 @@ from .entity import (
     envoy_device,
 )
 from .envoy_client.models import LivePower, PhaseLayout, StreamFrame, StreamMeter
+from .overhead import Overhead, to_watts
+
+_LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
 
@@ -443,6 +458,140 @@ _CLOUD_SENSORS = (
 )
 
 
+# --- Enphase overhead (docs/specs/enphase-overhead.md) ------------------------------------------
+
+OVERHEAD_POWER = "enphase_overhead_power"
+OVERHEAD_ENERGY = "enphase_overhead_energy"
+
+
+class OverheadFeed:
+    """Takes one sample per live poll and then writes both overhead entities, so they always
+    show the same sample whatever order the coordinator calls its listeners in."""
+
+    def __init__(self, hass: HomeAssistant, live: LiveCoordinator, backup_entity: str) -> None:
+        self.hass = hass
+        self.live = live
+        self.backup_entity = backup_entity
+        self.overhead = Overhead()
+        self.entities: list[SensorEntity] = []
+        # Whether the current run of skipped (stale) polls has been logged.
+        self._stale_logged = False
+
+    @callback
+    def sample(self) -> None:
+        now = time.monotonic()
+        load = None
+        if self.live.last_update_success and self.live.data is not None:
+            meter = self.live.data.livedata.load
+            load = meter.power if meter is not None else None
+        backup = None
+        if (state := self.hass.states.get(self.backup_entity)) is not None:
+            backup = to_watts(state.state, state.attributes.get(ATTR_UNIT_OF_MEASUREMENT))
+        rejecting_since = self.overhead.rejecting_since
+        stale_since = self.overhead.stale_since
+        self.overhead.add(now, load, backup)
+        if (since := self.overhead.stale_since) is not None:
+            if not self._stale_logged and now - since >= OVERHEAD_STALE_LOG_AFTER:
+                _LOGGER.debug(
+                    "Enphase overhead: Envoy load held at %s W for %.1f s, skipping samples",
+                    load,
+                    now - since,
+                )
+                self._stale_logged = True
+        elif stale_since is not None:
+            if self._stale_logged:
+                _LOGGER.debug(
+                    "Enphase overhead: Envoy load moving again after %.1f s", now - stale_since
+                )
+            self._stale_logged = False
+        if rejecting_since is None and self.overhead.rejecting_since is not None:
+            _LOGGER.debug(
+                "Enphase overhead: rejecting samples (Envoy load %s W, backup load %s W)",
+                load,
+                backup,
+            )
+        elif rejecting_since is not None and self.overhead.rejecting_since is None:
+            _LOGGER.debug(
+                "Enphase overhead: accepting samples again after %.1f s", now - rejecting_since
+            )
+        for entity in self.entities:
+            if entity.hass is not None:
+                entity.async_write_ha_state()
+
+
+class OverheadPowerSensor(SensorEntity):
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_name = "Enphase overhead power"
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, feed: OverheadFeed, device: DeviceInfo, serial: str) -> None:
+        self._feed = feed
+        self._attr_device_info = device
+        self._attr_unique_id = f"{serial}_{OVERHEAD_POWER}"
+
+    @property
+    def available(self) -> bool:
+        # Unavailable with the other live entities after a run of failed polls.
+        return self._feed.live.entities_available and self.native_value is not None
+
+    @property
+    def native_value(self) -> float | None:
+        return self._feed.overhead.mean(time.monotonic())
+
+
+class OverheadEnergySensor(RestoreSensor):
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_name = "Enphase overhead energy"
+    _attr_device_class = SensorDeviceClass.ENERGY
+    # Samples can be negative (meter error), and clipping them would bias the total (spec 5).
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_native_unit_of_measurement = UnitOfEnergy.WATT_HOUR
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, feed: OverheadFeed, device: DeviceInfo, serial: str) -> None:
+        self._feed = feed
+        self._attr_device_info = device
+        self._attr_unique_id = f"{serial}_{OVERHEAD_ENERGY}"
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_sensor_data()
+        if last is not None and isinstance(last.native_value, int | float):
+            self._feed.overhead.energy_wh += float(last.native_value)
+
+    @property
+    def native_value(self) -> float:
+        return self._feed.overhead.energy_wh
+
+
+def _overhead_entities(
+    hass: HomeAssistant, entry: EnphaseConfigEntry, device: DeviceInfo
+) -> list[SensorEntity]:
+    """The overhead entities when a backup-load sensor is set; otherwise drop any left over."""
+    rt = entry.runtime_data
+    backup_entity = rt.options.get(CONF_BACKUP_LOAD_ENTITY)
+    if not backup_entity:
+        registry = er.async_get(hass)
+        for key in (OVERHEAD_POWER, OVERHEAD_ENERGY):
+            if entity_id := registry.async_get_entity_id("sensor", DOMAIN, f"{rt.serial}_{key}"):
+                registry.async_remove(entity_id)
+        return []
+    feed = OverheadFeed(hass, rt.live, backup_entity)
+    feed.entities = [
+        OverheadPowerSensor(feed, device, rt.serial),
+        OverheadEnergySensor(feed, device, rt.serial),
+    ]
+    entry.async_on_unload(rt.live.async_add_listener(feed.sample))
+    # The first poll ran before this listener existed.
+    feed.sample()
+    return feed.entities
+
+
 # --- Platform -----------------------------------------------------------------------------------
 
 
@@ -459,7 +608,7 @@ async def async_setup_entry(
 ) -> None:
     rt = entry.runtime_data
     envoy = envoy_device(rt.serial, rt.firmware)
-    entities: list[EnphaseSensor] = []
+    entities: list[SensorEntity] = []
 
     def add(
         coordinator: DataUpdateCoordinator[Any],
@@ -513,4 +662,5 @@ async def async_setup_entry(
     if rt.cloud is not None:
         add(rt.cloud, _CLOUD_SENSORS, envoy, rt.serial)
 
+    entities.extend(_overhead_entities(hass, entry, envoy))
     async_add_entities(entities)

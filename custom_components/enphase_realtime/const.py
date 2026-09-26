@@ -25,6 +25,9 @@ CONF_COUNTRY = "country"
 CONF_TIME_ZONE = "time_zone"
 # Off by default: opening the relay by accident can't be undone remotely (spec 6.3).
 CONF_ALLOW_GRID_RELAY = "allow_grid_relay_control"
+# A power sensor on the backed-up panel's feed; set, it adds the overhead entities
+# (docs/specs/enphase-overhead.md).
+CONF_BACKUP_LOAD_ENTITY = "backup_load_entity"
 
 DEFAULT_HOST = "envoy.local"
 DEFAULT_LIVE_INTERVAL = 1
@@ -45,6 +48,11 @@ STREAM_STALE_CHECK = timedelta(seconds=5)
 STREAM_THROTTLE_SLACK = timedelta(milliseconds=200)
 # Live entities stay available through this many failed polls in a row, less one (spec 3.1).
 LIVE_FAILURES_BEFORE_UNAVAILABLE = 3
+# livedata's `meters.last_update` held this long is logged (enphase-overhead.md, 6).
+LIVE_STAMP_LOG_AFTER = 3.0
+# A run of repeated Envoy loads, skipped by the overhead, is logged once it lasts this long
+# (enphase-overhead.md, 6); shorter repeats are the Envoy's own update rate.
+OVERHEAD_STALE_LOG_AFTER = 3.0
 # The `sc_stream` enable is sent at most this often (spec 3.1).
 SC_STREAM_ENABLE_COOLDOWN = timedelta(seconds=60)
 # How long setup waits for the first stream frame before creating stream entities anyway.
