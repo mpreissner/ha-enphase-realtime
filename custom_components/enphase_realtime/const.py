@@ -48,7 +48,7 @@ STREAM_STALE_CHECK = timedelta(seconds=5)
 STREAM_THROTTLE_SLACK = timedelta(milliseconds=200)
 # Live entities stay available through this many failed polls in a row, less one (spec 3.1).
 LIVE_FAILURES_BEFORE_UNAVAILABLE = 3
-# livedata's `meters.last_update` held this long is logged (enphase-overhead.md, 8).
+# livedata's `meters.last_update` held this long is logged (enphase-overhead.md, 6).
 LIVE_STAMP_LOG_AFTER = 3.0
 # The `sc_stream` enable is sent at most this often (spec 3.1).
 SC_STREAM_ENABLE_COOLDOWN = timedelta(seconds=60)

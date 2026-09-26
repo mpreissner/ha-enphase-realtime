@@ -140,7 +140,8 @@ the Envoy device:
   slightly different moments and don't report a change in load at the same time, so for a
   second or two after the load steps the difference is mostly timing. Readings more than 150 W
   from the recent level are ignored and the recent level is used instead, unless the new level
-  lasts (over 20 s, and steady). Unavailable while the backup load sensor is.
+  lasts (over 20 s, and steady). While the Envoy stalls and repeats an old load
+  value, readings are skipped. Unavailable while the backup load sensor is.
 - **Enphase overhead energy**: the running total of the same filtered readings, for the Energy
   dashboard as an individual device. Gaps (either sensor missing, or more than 30 s between readings) add nothing.
 

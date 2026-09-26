@@ -485,7 +485,14 @@ class OverheadFeed:
         if (state := self.hass.states.get(self.backup_entity)) is not None:
             backup = to_watts(state.state, state.attributes.get(ATTR_UNIT_OF_MEASUREMENT))
         rejecting_since = self.overhead.rejecting_since
+        stale_since = self.overhead.stale_since
         self.overhead.add(now, load, backup)
+        if stale_since is None and self.overhead.stale_since is not None:
+            _LOGGER.debug("Enphase overhead: Envoy load held at %s W, skipping samples", load)
+        elif stale_since is not None and self.overhead.stale_since is None:
+            _LOGGER.debug(
+                "Enphase overhead: Envoy load moving again after %.1f s", now - stale_since
+            )
         if rejecting_since is None and self.overhead.rejecting_since is not None:
             _LOGGER.debug(
                 "Enphase overhead: rejecting samples (Envoy load %s W, backup load %s W)",

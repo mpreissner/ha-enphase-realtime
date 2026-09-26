@@ -122,7 +122,7 @@ class LiveCoordinator(DataUpdateCoordinator[LiveFeed]):
 
     def _log_stamp(self, livedata: LiveData) -> None:
         """Log `meters.last_update` held across polls: the Envoy's values may be stale then, and
-        a snapshot identical to the last one reaches no listener (enphase-overhead.md, 8)."""
+        a snapshot identical to the last one reaches no listener (enphase-overhead.md, 6)."""
         now = time.monotonic()
         if livedata.last_update != self._stamp:
             if self._stamp_logged:

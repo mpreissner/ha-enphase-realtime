@@ -28,6 +28,10 @@ MIN_BASELINE = 5
 REBASE_AFTER = 20.0
 STEADY = 5.0
 
+# Stale snapshots (spec 6). During a stall the Envoy keeps answering, with a fresh
+# `meters.last_update` but the same power values; a real load doesn't repeat to the milliwatt.
+# A poll whose Envoy load equals the previous one is skipped.
+
 _TO_WATTS = {"mW": 1e-3, "W": 1.0, "kW": 1e3, "MW": 1e6, "GW": 1e9}
 
 
@@ -60,10 +64,22 @@ class Overhead:
         self._recent: deque[tuple[float, float]] = deque()
         # When the current run of rejections began; None while samples are accepted.
         self.rejecting_since: float | None = None
+        # The previous poll's Envoy load, and when the current run of repeats began.
+        self._envoy_load: float | None = None
+        self.stale_since: float | None = None
 
     def add(self, now: float, envoy_load: float | None, backup_load: float | None) -> None:
-        """One live poll. A missing reading is a gap: no sample, and no energy for it."""
+        """One live poll. A missing reading is a gap: no sample, and no energy for it. A stale
+        one is skipped: the previous sample stands, and carries the energy across a stall no
+        longer than MAX_GAP."""
         self._expire(now)
+        stale = envoy_load is not None and envoy_load == self._envoy_load
+        self._envoy_load = envoy_load
+        if stale:
+            if self.stale_since is None:
+                self.stale_since = now
+            return
+        self.stale_since = None
         if envoy_load is None or backup_load is None:
             self._last = None
             return

@@ -85,8 +85,8 @@ poll has no `load`, no sample is taken. The power entity is unavailable while it
 empty; the energy entity stays available and stops counting.
 
 The live coordinator notifies its listeners only when a poll's data differs from the last
-(`always_update=False`). A poll that returns an identical snapshot, which a stalled Envoy does,
-therefore takes no sample; a stall under 30 s is integrated at the last value (section 8).
+(`always_update=False`), so a poll identical to the previous one takes no sample. A poll whose
+power values are stale is skipped too (section 6).
 
 **Energy.** Each sample adds `overhead × Δt` (left Riemann sum), where Δt is the time since the
 previous sample. If more than 30 s has passed, or the previous poll had no sample, nothing is
@@ -131,11 +131,24 @@ Comparing against a baseline needs no step detection.
 
 Rejections starting and ending are logged at debug level by the sensor platform.
 
+**Stale snapshots.** During a stall the Envoy keeps answering, but with old power values: on
+2026-09-26 grid and load held at exactly 1273.456 W from 14:17:36 to 14:18:33 while the SPAN
+moved between 1254 and 1368 W, and again for 19 s at 14:27:50. `meters.last_update` kept
+advancing through both (the live coordinator logs at debug level if it holds for 3 s, and it
+never did), so it can't be used to detect them. The values themselves can: a measured load
+doesn't repeat to the milliwatt. A poll whose Envoy load equals the previous poll's is skipped:
+it adds nothing to the window, the baseline or the rejection timer, and the previous sample
+carries the energy across the stall if it lasts no longer than 30 s. Without this, a step over
+150 W during a long stall would be rejected for 20 s and then, the held value being perfectly
+steady, accepted as a new baseline. Runs of skipped polls are logged at debug level.
+
 ## 7. Tests
 
 - Unit (`tests/test_overhead.py`): the window mean and expiry, unit conversion, the energy sum,
   gaps over 30 s, missing samples, and the outlier filter: seeding, rejection, a step reported
-  as a ramp, accepting a lasting change only once steady, and the baseline surviving a gap.
+  as a ramp, accepting a lasting change only once steady, and the baseline surviving a gap; a
+  repeated Envoy load is skipped, carries energy across a short stall but not a long one, and
+  isn't taken as a new level.
 - Home Assistant (`tests_ha/test_overhead.py`): the option adds the entities; the values follow
   the fixture's load and a stub backup-load state; the entity goes unavailable when the stub
   does; clearing the option removes the entities; the options form offers the selector; a held
@@ -143,12 +156,7 @@ Rejections starting and ending are logged at debug level by the sensor platform.
 
 ## 8. Later
 
-- **Stale snapshots.** Whether livedata's `meters.last_update` stops advancing while the Envoy
-  stalls. The live coordinator logs at debug level when it has been unchanged for 3 s and when it
-  moves again. If it does mark stale data, samples from a held timestamp could be skipped rather
-  than integrated.
 - Load above 2.5 kW, to check whether the overhead's dependence on load stays small.
-
 - Diagnostics and a distinct mode for partial-backup sites whose CTs are at the service
   entrance, if one turns up.
 
