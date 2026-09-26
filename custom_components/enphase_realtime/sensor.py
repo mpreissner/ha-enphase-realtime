@@ -37,6 +37,7 @@ from .const import (
     CONF_BACKUP_LOAD_ENTITY,
     DOMAIN,
     ENPOWER_TEMPERATURE_UNIT,
+    OVERHEAD_STALE_LOG_AFTER,
     PHASE_NAMES,
 )
 from .coordinator import FastData, LiveCoordinator, LiveFeed, SlowData
@@ -473,6 +474,8 @@ class OverheadFeed:
         self.backup_entity = backup_entity
         self.overhead = Overhead()
         self.entities: list[SensorEntity] = []
+        # Whether the current run of skipped (stale) polls has been logged.
+        self._stale_logged = False
 
     @callback
     def sample(self) -> None:
@@ -487,12 +490,20 @@ class OverheadFeed:
         rejecting_since = self.overhead.rejecting_since
         stale_since = self.overhead.stale_since
         self.overhead.add(now, load, backup)
-        if stale_since is None and self.overhead.stale_since is not None:
-            _LOGGER.debug("Enphase overhead: Envoy load held at %s W, skipping samples", load)
-        elif stale_since is not None and self.overhead.stale_since is None:
-            _LOGGER.debug(
-                "Enphase overhead: Envoy load moving again after %.1f s", now - stale_since
-            )
+        if (since := self.overhead.stale_since) is not None:
+            if not self._stale_logged and now - since >= OVERHEAD_STALE_LOG_AFTER:
+                _LOGGER.debug(
+                    "Enphase overhead: Envoy load held at %s W for %.1f s, skipping samples",
+                    load,
+                    now - since,
+                )
+                self._stale_logged = True
+        elif stale_since is not None:
+            if self._stale_logged:
+                _LOGGER.debug(
+                    "Enphase overhead: Envoy load moving again after %.1f s", now - stale_since
+                )
+            self._stale_logged = False
         if rejecting_since is None and self.overhead.rejecting_since is not None:
             _LOGGER.debug(
                 "Enphase overhead: rejecting samples (Envoy load %s W, backup load %s W)",

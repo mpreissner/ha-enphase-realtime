@@ -50,6 +50,9 @@ STREAM_THROTTLE_SLACK = timedelta(milliseconds=200)
 LIVE_FAILURES_BEFORE_UNAVAILABLE = 3
 # livedata's `meters.last_update` held this long is logged (enphase-overhead.md, 6).
 LIVE_STAMP_LOG_AFTER = 3.0
+# A run of repeated Envoy loads, skipped by the overhead, is logged once it lasts this long
+# (enphase-overhead.md, 6); shorter repeats are the Envoy's own update rate.
+OVERHEAD_STALE_LOG_AFTER = 3.0
 # The `sc_stream` enable is sent at most this often (spec 3.1).
 SC_STREAM_ENABLE_COOLDOWN = timedelta(seconds=60)
 # How long setup waits for the first stream frame before creating stream entities anyway.

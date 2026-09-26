@@ -20,6 +20,7 @@ from custom_components.enphase_realtime.const import (
     CONF_TIME_ZONE,
     DOMAIN,
     LIVE_STAMP_LOG_AFTER,
+    OVERHEAD_STALE_LOG_AFTER,
 )
 from custom_components.enphase_realtime.envoy_client.errors import EnvoyConnectionError
 from tests.helpers import load_json
@@ -198,3 +199,33 @@ async def test_a_held_livedata_timestamp_is_logged(
     clock.now += 1
     await _live_tick(hass, entry)
     assert "meters.last_update advanced" in caplog.text
+
+
+async def test_only_a_lasting_stale_run_is_logged(
+    hass: HomeAssistant, fake: FakeEnphase, clock: Clock, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level("DEBUG", logger="custom_components.enphase_realtime.sensor")
+    hass.states.async_set(BACKUP, "1200", {"unit_of_measurement": "W"})
+    entry = _entry(**{CONF_BACKUP_LOAD_ENTITY: BACKUP})
+    await _setup(hass, entry)
+    meters = load_json("ivp_livedata_status.json")["meters"]
+
+    async def poll(load_moves: bool) -> None:
+        # A fresh timestamp every poll, as the Envoy gives even while it repeats old values.
+        meters["last_update"] += 1
+        if load_moves:
+            meters["load"]["agg_p_mw"] += 1000
+        fake.envoy_overrides[LIVEDATA] = {"meters": meters}
+        clock.now += 1
+        await _live_tick(hass, entry)
+
+    # One repeat, as the Envoy's own update rate gives: skipped, not logged.
+    await poll(load_moves=False)
+    await poll(load_moves=True)
+    assert "Envoy load" not in caplog.text
+
+    for _ in range(int(OVERHEAD_STALE_LOG_AFTER) + 1):
+        await poll(load_moves=False)
+    assert "Envoy load held" in caplog.text
+    await poll(load_moves=True)
+    assert "Envoy load moving again" in caplog.text
