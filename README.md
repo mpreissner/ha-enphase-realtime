@@ -77,6 +77,7 @@ If Enphase later refuses the saved login, Home Assistant asks you to log in agai
   shutdown level and reserve battery level numbers, and a "Pending cloud change" sensor
 - dry contacts: state and settings (no controls yet)
 - microinverters: last reported power and time (disabled by default)
+- optionally, the Enphase equipment's own draw (see [Enphase overhead](#enphase-overhead))
 
 The full list, with the core integration's equivalent for each entity, is in section 5 of the
 [spec](docs/specs/core-integration.md#5-entities-and-parity-with-the-core-integration).
@@ -119,6 +120,42 @@ Home Assistant, your automation and the switch or relay it drives. An IQ Battery
 overload limit faster than that. Treat automations as a way to avoid reaching the limit, not as
 overload protection: for loads that must never trip the battery, use hardware load control
 (the IQ System Controller's load-control relays, or a smart panel).
+
+## Enphase overhead
+
+The Enphase equipment draws power of its own: the IQ Gateway, the IQ System Controller and the
+batteries. The Envoy can't report it, because its "load" is calculated as grid + PV + battery,
+which includes the equipment's draw. If another device in Home Assistant measures the power
+into the panel the System Controller feeds (the **backup load**, for example a SPAN panel's
+main feed), the difference is the overhead:
+
+```
+Enphase overhead = Envoy load − backup load
+```
+
+To turn it on, pick that sensor in the option **Backup load sensor**. Two sensors are added to
+the Envoy device:
+
+- **Enphase overhead power**: the mean over the last 5 minutes. The two meters are read at
+  slightly different moments and don't report a change in load at the same time, so for a
+  second or two after the load steps the difference is mostly timing. Readings more than 150 W
+  from the recent level are ignored and the recent level is used instead, unless the new level
+  lasts (over 20 s, and steady). While the Envoy stalls and repeats an old load
+  value, readings are skipped. Unavailable while the backup load sensor is.
+- **Enphase overhead energy**: the running total of the same filtered readings, for the Energy
+  dashboard as an individual device. Gaps (either sensor missing, or more than 30 s between readings) add nothing.
+
+Clearing the option removes both sensors.
+
+This works with full-home and partial backup, as long as the Envoy's consumption CTs measure
+the System Controller's grid input. If they sit at the utility service instead, anything wired
+upstream of the System Controller ends up in the overhead too. The backup load sensor must
+report power drawn by the panel as positive, as SPAN's main feed and other correctly installed
+main monitors do. A large negative overhead usually means a CT is installed backwards.
+
+Only equipment on the System Controller's side of the Envoy's CTs is included. If your IQ Gateway
+is powered from the combiner, ahead of the production CTs, its draw won't appear. On the
+reference site the overhead is about 8–9 W. See the [spec](docs/specs/enphase-overhead.md).
 
 ## Grid relay
 
