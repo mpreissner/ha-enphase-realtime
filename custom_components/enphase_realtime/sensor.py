@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -50,6 +51,8 @@ from .entity import (
 )
 from .envoy_client.models import LivePower, PhaseLayout, StreamFrame, StreamMeter
 from .overhead import Overhead, to_watts
+
+_LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
 
@@ -473,6 +476,7 @@ class OverheadFeed:
 
     @callback
     def sample(self) -> None:
+        now = time.monotonic()
         load = None
         if self.live.last_update_success and self.live.data is not None:
             meter = self.live.data.livedata.load
@@ -480,7 +484,18 @@ class OverheadFeed:
         backup = None
         if (state := self.hass.states.get(self.backup_entity)) is not None:
             backup = to_watts(state.state, state.attributes.get(ATTR_UNIT_OF_MEASUREMENT))
-        self.overhead.add(time.monotonic(), load, backup)
+        rejecting_since = self.overhead.rejecting_since
+        self.overhead.add(now, load, backup)
+        if rejecting_since is None and self.overhead.rejecting_since is not None:
+            _LOGGER.debug(
+                "Enphase overhead: rejecting samples (Envoy load %s W, backup load %s W)",
+                load,
+                backup,
+            )
+        elif rejecting_since is not None and self.overhead.rejecting_since is None:
+            _LOGGER.debug(
+                "Enphase overhead: accepting samples again after %.1f s", now - rejecting_since
+            )
         for entity in self.entities:
             if entity.hass is not None:
                 entity.async_write_ha_state()

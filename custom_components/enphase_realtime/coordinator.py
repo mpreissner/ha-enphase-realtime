@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
@@ -18,6 +19,7 @@ from .const import (
     CONF_PHASE_LAYOUT,
     DOMAIN,
     LIVE_FAILURES_BEFORE_UNAVAILABLE,
+    LIVE_STAMP_LOG_AFTER,
     SC_STREAM_ENABLE_COOLDOWN,
     SLOW_INTERVAL,
     STREAM_STALE_AFTER,
@@ -93,6 +95,11 @@ class LiveCoordinator(DataUpdateCoordinator[LiveFeed]):
         self._hw = hardware
         self.failed_polls = 0
         self._enable_sent_at: datetime | None = None
+        # The last `meters.last_update`, when it was first seen (monotonic), and whether it has
+        # been logged as held.
+        self._stamp: datetime | None = None
+        self._stamp_since = 0.0
+        self._stamp_logged = False
 
     @property
     def entities_available(self) -> bool:
@@ -110,7 +117,30 @@ class LiveCoordinator(DataUpdateCoordinator[LiveFeed]):
             )
         if livedata.sc_stream == "disabled":
             await self._enable_sc_stream()
+        self._log_stamp(livedata)
         return LiveFeed(livedata, relay)
+
+    def _log_stamp(self, livedata: LiveData) -> None:
+        """Log `meters.last_update` held across polls: the Envoy's values may be stale then, and
+        a snapshot identical to the last one reaches no listener (enphase-overhead.md, 8)."""
+        now = time.monotonic()
+        if livedata.last_update != self._stamp:
+            if self._stamp_logged:
+                _LOGGER.debug(
+                    "livedata meters.last_update advanced to %s after %.1f s unchanged",
+                    livedata.last_update,
+                    now - self._stamp_since,
+                )
+            self._stamp, self._stamp_since, self._stamp_logged = livedata.last_update, now, False
+        elif not self._stamp_logged and now - self._stamp_since >= LIVE_STAMP_LOG_AFTER:
+            load = livedata.load.power if livedata.load is not None else None
+            _LOGGER.debug(
+                "livedata meters.last_update unchanged at %s for %.1f s (load %s W)",
+                livedata.last_update,
+                now - self._stamp_since,
+                load,
+            )
+            self._stamp_logged = True
 
     async def _enable_sc_stream(self) -> None:
         now = dt_util.utcnow()

@@ -13,12 +13,13 @@ from pytest_homeassistant_custom_component.common import (
     mock_restore_cache_with_extra_data,
 )
 
-from custom_components.enphase_realtime import sensor
+from custom_components.enphase_realtime import coordinator, sensor
 from custom_components.enphase_realtime.const import (
     CONF_BACKUP_LOAD_ENTITY,
     CONF_COUNTRY,
     CONF_TIME_ZONE,
     DOMAIN,
+    LIVE_STAMP_LOG_AFTER,
 )
 from custom_components.enphase_realtime.envoy_client.errors import EnvoyConnectionError
 from tests.helpers import load_json
@@ -44,6 +45,7 @@ class Clock:
 def clock(monkeypatch: pytest.MonkeyPatch) -> Clock:
     c = Clock()
     monkeypatch.setattr(sensor, "time", c)
+    monkeypatch.setattr(coordinator, "time", c)
     return c
 
 
@@ -175,3 +177,24 @@ async def test_options_offer_the_backup_sensor(hass: HomeAssistant) -> None:
     entry.add_to_hass(hass)
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert CONF_BACKUP_LOAD_ENTITY in result["data_schema"].schema
+
+
+async def test_a_held_livedata_timestamp_is_logged(
+    hass: HomeAssistant, fake: FakeEnphase, clock: Clock, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level("DEBUG", logger="custom_components.enphase_realtime.coordinator")
+    hass.states.async_set(BACKUP, "1200", {"unit_of_measurement": "W"})
+    entry = _entry(**{CONF_BACKUP_LOAD_ENTITY: BACKUP})
+    await _setup(hass, entry)
+
+    # The fixture's timestamp never moves.
+    clock.now += LIVE_STAMP_LOG_AFTER
+    await _live_tick(hass, entry)
+    assert "meters.last_update unchanged" in caplog.text
+
+    meters = load_json("ivp_livedata_status.json")["meters"]
+    meters["last_update"] += 5
+    fake.envoy_overrides[LIVEDATA] = {"meters": meters}
+    clock.now += 1
+    await _live_tick(hass, entry)
+    assert "meters.last_update advanced" in caplog.text

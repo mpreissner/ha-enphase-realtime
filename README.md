@@ -136,11 +136,13 @@ Enphase overhead = Envoy load − backup load
 To turn it on, pick that sensor in the option **Backup load sensor**. Two sensors are added to
 the Envoy device:
 
-- **Enphase overhead power**: the mean over the last 60 s. The two meters are read at slightly
-  different moments, so single readings wobble by tens of watts. Unavailable while the backup
-  load sensor is.
-- **Enphase overhead energy**: the running total, for the Energy dashboard as an individual
-  device. Gaps (either sensor missing, or more than 30 s between readings) add nothing.
+- **Enphase overhead power**: the mean over the last 5 minutes. The two meters are read at
+  slightly different moments and don't report a change in load at the same time, so for a
+  second or two after the load steps the difference is mostly timing. Readings more than 150 W
+  from the recent level are ignored and the recent level is used instead, unless the new level
+  lasts (over 20 s, and steady). Unavailable while the backup load sensor is.
+- **Enphase overhead energy**: the running total of the same filtered readings, for the Energy
+  dashboard as an individual device. Gaps (either sensor missing, or more than 30 s between readings) add nothing.
 
 Clearing the option removes both sensors.
 
@@ -148,7 +150,11 @@ This works with full-home and partial backup, as long as the Envoy's consumption
 the System Controller's grid input. If they sit at the utility service instead, anything wired
 upstream of the System Controller ends up in the overhead too. The backup load sensor must
 report power drawn by the panel as positive, as SPAN's main feed and other correctly installed
-main monitors do. A large negative overhead usually means a CT is installed backwards. See the [spec](docs/specs/enphase-overhead.md).
+main monitors do. A large negative overhead usually means a CT is installed backwards.
+
+Only equipment on the System Controller's side of the Envoy's CTs is included. If your IQ Gateway
+is powered from the combiner, ahead of the production CTs, its draw won't appear. On the
+reference site the overhead is about 8–9 W. See the [spec](docs/specs/enphase-overhead.md).
 
 ## Grid relay
 

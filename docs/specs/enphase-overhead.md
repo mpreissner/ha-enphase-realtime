@@ -1,6 +1,7 @@
 # Enphase overhead from a backup-load sensor
 
-Status: implemented, 2026-09-26.
+Status: implemented, 2026-09-26; outlier rejection and the 300 s window added the same day after
+four hours of data from the reference site (section 6).
 
 ## 1. Goal
 
@@ -40,6 +41,12 @@ the System Controller's grid input. If they sit at the utility service instead, 
 partial-backup site whose non-backed-up loads are upstream of the System Controller, those loads
 land in the overhead too. The README says so.
 
+**What the overhead includes.** Only what draws from the System Controller's side of the Envoy's
+CTs. On the reference site the IQ Gateway is powered from a breaker in the System Controller, and
+the Neutral Forming Transformer's relay is open (it is idle), so the figure is the Gateway, the
+System Controller and the batteries' own draw. On a grid-tied install where the Gateway draws
+from the combiner bus ahead of the production CTs, its draw isn't in the overhead at all.
+
 ## 4. Options
 
 One new option, **Backup load sensor** (`backup_load_entity`): an entity selector limited to
@@ -57,16 +64,18 @@ and `<serial>_enphase_overhead_energy`.
 
 | Entity | Class | Value |
 |---|---|---|
-| Enphase overhead power | power, measurement, W | Mean of the instantaneous overhead over the last 60 s |
-| Enphase overhead energy | energy, total, Wh | Integral of the instantaneous overhead since the entity was created |
+| Enphase overhead power | power, measurement, W | Mean of the filtered overhead over the last 300 s |
+| Enphase overhead energy | energy, total, Wh | Integral of the filtered overhead since the entity was created |
 
 **When the value is computed.** On every live poll (default 1 s), from that poll's `load` and the
 backup-load sensor's current state. The backup-load sensor isn't polled: its latest state is
 used as it stands, because sensors such as SPAN's report only when the value changes.
 
 **Averaging.** The two meters are read at different moments and by different devices, so single
-samples wobble by tens of watts, the same size as the overhead itself. The power entity shows a
-60 s mean. Samples older than 60 s drop out of the window.
+samples wobble by tens of watts, the same size as the overhead itself. Each sample first passes
+the outlier filter (section 6); the power entity shows the mean of the filtered samples over
+300 s. Samples older than that drop out of the window. 60 s, the first choice, still let a
+single mistimed step move the mean by tens of watts.
 
 **Units.** The backup-load sensor's value is converted from its `unit_of_measurement` (W, kW,
 MW, …) to W. A state that isn't a number, or a unit that isn't a power unit, counts as missing.
@@ -75,22 +84,70 @@ MW, …) to W. A state that isn't a number, or a unit that isn't a power unit, c
 poll has no `load`, no sample is taken. The power entity is unavailable while its window is
 empty; the energy entity stays available and stops counting.
 
+The live coordinator notifies its listeners only when a poll's data differs from the last
+(`always_update=False`). A poll that returns an identical snapshot, which a stalled Envoy does,
+therefore takes no sample; a stall under 30 s is integrated at the last value (section 8).
+
 **Energy.** Each sample adds `overhead × Δt` (left Riemann sum), where Δt is the time since the
 previous sample. If more than 30 s has passed, or the previous poll had no sample, nothing is
-added for that interval: an outage is a gap, not a guess. Negative samples are added as they
-are, because clipping them would bias the total upwards; the state class is therefore `total`
+added for that interval: an outage is a gap, not a guess. The filtered value is integrated, so
+a rejected sample counts at the baseline. Negative samples are added as they are, because clipping them would bias the total upwards; the state class is therefore `total`
 rather than `total_increasing`, which the Energy dashboard accepts for a device. The total is
 restored across restarts.
 
-## 6. Tests
+## 6. Outlier rejection
+
+**Why.** On the reference site (09:39–13:59, 2026-09-26, 1–2.5 kW of load):
+
+- In steady load the overhead's median was 8–9 W (hourly medians 6.7–10.7 W). A fit against
+  load gives about 5.5 W + 0.22 % of load, so it is mostly a fixed draw. Load above 2.5 kW
+  hasn't been seen yet.
+- SPAN's main feed reports a step about 1.4 s after the Envoy (median of the matched steps;
+  −0.2 to 3.3 s), sometimes as a
+  ramp over two or three updates, and sometimes shows sub-second blips the Envoy never sees.
+- The Envoy's livedata stalls: 38 gaps of over 8 s in four hours, clustered around every
+  ten minutes, with polls taking 1–2 s and returning stale load (once 1164 W for about 7 s while
+  the panel drew 2400 W), and 15 relay timeouts.
+
+Each step in the load therefore shows up as a spike of up to the step's size in the difference,
+lasting as long as the two meters disagree. With no filter the published figure ranged from −50
+to 312 W over a 300 s window, and the energy averaged 10.4 W against a true 8–9 W.
+
+**How.** The baseline is the median of the last 30 accepted differences. A difference within
+150 W of it is accepted; one further away is replaced by the baseline, for both the mean and the
+energy. The first 5 samples are accepted as they are, to seed the baseline. The baseline is kept
+across gaps, so polling that resumes mid-step is judged against the old level.
+
+A real change in the overhead (the Neutral Forming Transformer closing, say) would be rejected
+indefinitely, so after 20 s of continuous rejection a difference is accepted once the raw
+differences over the last 5 s lie within 150 W of each other; the baseline then restarts from
+it. A timing artefact doesn't hold that long.
+
+Replayed over the same four hours, this gives −19 to 19 W over the 300 s window and an energy
+average of 7.8 W. An earlier design that matched each Envoy step with the SPAN's (holding the
+last good value until the SPAN caught up) reached −8 to 21 W but failed when the first part of a
+ramp was below its step threshold: that part became the "good" value and the hold never ended.
+Comparing against a baseline needs no step detection.
+
+Rejections starting and ending are logged at debug level by the sensor platform.
+
+## 7. Tests
 
 - Unit (`tests/test_overhead.py`): the window mean and expiry, unit conversion, the energy sum,
-  gaps over 30 s, and missing samples.
+  gaps over 30 s, missing samples, and the outlier filter: seeding, rejection, a step reported
+  as a ramp, accepting a lasting change only once steady, and the baseline surviving a gap.
 - Home Assistant (`tests_ha/test_overhead.py`): the option adds the entities; the values follow
   the fixture's load and a stub backup-load state; the entity goes unavailable when the stub
-  does; clearing the option removes the entities; the options form offers the selector.
+  does; clearing the option removes the entities; the options form offers the selector; a held
+  livedata timestamp is logged.
 
-## 7. Later
+## 8. Later
+
+- **Stale snapshots.** Whether livedata's `meters.last_update` stops advancing while the Envoy
+  stalls. The live coordinator logs at debug level when it has been unchanged for 3 s and when it
+  moves again. If it does mark stale data, samples from a held timestamp could be skipped rather
+  than integrated.
+- Load above 2.5 kW, to check whether the overhead's dependence on load stays small.
 
 - Diagnostics and a distinct mode for partial-backup sites whose CTs are at the service
   entrance, if one turns up.
