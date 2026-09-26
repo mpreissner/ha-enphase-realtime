@@ -77,6 +77,7 @@ If Enphase later refuses the saved login, Home Assistant asks you to log in agai
   shutdown level and reserve battery level numbers, and a "Pending cloud change" sensor
 - dry contacts: state and settings (no controls yet)
 - microinverters: last reported power and time (disabled by default)
+- optionally, the Enphase equipment's own draw (see [Enphase overhead](#enphase-overhead))
 
 The full list, with the core integration's equivalent for each entity, is in section 5 of the
 [spec](docs/specs/core-integration.md#5-entities-and-parity-with-the-core-integration).
@@ -119,6 +120,35 @@ Home Assistant, your automation and the switch or relay it drives. An IQ Battery
 overload limit faster than that. Treat automations as a way to avoid reaching the limit, not as
 overload protection: for loads that must never trip the battery, use hardware load control
 (the IQ System Controller's load-control relays, or a smart panel).
+
+## Enphase overhead
+
+The Enphase equipment draws power of its own: the IQ Gateway, the IQ System Controller and the
+batteries. The Envoy can't report it, because its "load" is calculated as grid + PV + battery,
+which includes the equipment's draw. If another device in Home Assistant measures the power
+into the panel the System Controller feeds (the **backup load**, for example a SPAN panel's
+main feed), the difference is the overhead:
+
+```
+Enphase overhead = Envoy load − backup load
+```
+
+To turn it on, pick that sensor in the option **Backup load sensor**. Two sensors are added to
+the Envoy device:
+
+- **Enphase overhead power**: the mean over the last 60 s. The two meters are read at slightly
+  different moments, so single readings wobble by tens of watts. Unavailable while the backup
+  load sensor is.
+- **Enphase overhead energy**: the running total, for the Energy dashboard as an individual
+  device. Gaps (either sensor missing, or more than 30 s between readings) add nothing.
+
+Clearing the option removes both sensors.
+
+This works with full-home and partial backup, as long as the Envoy's consumption CTs measure
+the System Controller's grid input. If they sit at the utility service instead, anything wired
+upstream of the System Controller ends up in the overhead too. The backup load sensor must
+report power drawn by the panel as positive; a large negative overhead means it reports the
+opposite sign. See the [spec](docs/specs/enphase-overhead.md).
 
 ## Grid relay
 

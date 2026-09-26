@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Any, Self
 
 import voluptuous as vol
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_EMAIL, CONF_HOST, CONF_PASSWORD
 from homeassistant.core import HomeAssistant, callback
@@ -16,6 +17,8 @@ from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.selector import (
     CountrySelector,
+    EntitySelector,
+    EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -29,6 +32,7 @@ from homeassistant.helpers.selector import (
 
 from .const import (
     CONF_ALLOW_GRID_RELAY,
+    CONF_BACKUP_LOAD_ENTITY,
     CONF_CLOUD_INTERVAL,
     CONF_COUNTRY,
     CONF_ENABLE_STREAM,
@@ -478,6 +482,10 @@ class EnphaseRealtimeOptionsFlow(OptionsFlow):
         # Only a System Controller has a grid relay to switch (spec 6.3).
         if self.config_entry.data.get(CONF_HAS_ENPOWER):
             fields[vol.Required(CONF_ALLOW_GRID_RELAY)] = bool
+        # Left empty, there are no overhead entities (docs/specs/enphase-overhead.md).
+        fields[vol.Optional(CONF_BACKUP_LOAD_ENTITY)] = EntitySelector(
+            EntitySelectorConfig(domain="sensor", device_class=SensorDeviceClass.POWER)
+        )
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(
@@ -495,6 +503,7 @@ class EnphaseRealtimeOptionsFlow(OptionsFlow):
                     CONF_ALLOW_GRID_RELAY: options.get(
                         CONF_ALLOW_GRID_RELAY, DEFAULT_ALLOW_GRID_RELAY
                     ),
+                    CONF_BACKUP_LOAD_ENTITY: options.get(CONF_BACKUP_LOAD_ENTITY),
                 },
             ),
         )

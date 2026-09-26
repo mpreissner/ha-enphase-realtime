@@ -309,6 +309,8 @@ discarded.
 - `cloud_interval` (default 300 s, 60–3600)
 - `enable_stream` (default on)
 - `allow_grid_relay_control` (default **off**, see 6.3)
+- `backup_load_entity` (default empty; a power sensor that adds the Enphase overhead entities,
+  see [enphase-overhead.md](enphase-overhead.md))
 - `country` and `time_zone` (prefilled as in 3.3)
 
 ## 5. Entities and parity with the core integration

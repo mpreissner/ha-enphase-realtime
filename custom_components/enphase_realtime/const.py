@@ -25,6 +25,9 @@ CONF_COUNTRY = "country"
 CONF_TIME_ZONE = "time_zone"
 # Off by default: opening the relay by accident can't be undone remotely (spec 6.3).
 CONF_ALLOW_GRID_RELAY = "allow_grid_relay_control"
+# A power sensor on the backed-up panel's feed; set, it adds the overhead entities
+# (docs/specs/enphase-overhead.md).
+CONF_BACKUP_LOAD_ENTITY = "backup_load_entity"
 
 DEFAULT_HOST = "envoy.local"
 DEFAULT_LIVE_INTERVAL = 1
