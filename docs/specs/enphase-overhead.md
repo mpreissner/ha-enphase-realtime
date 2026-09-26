@@ -140,7 +140,8 @@ doesn't repeat to the milliwatt. A poll whose Envoy load equals the previous pol
 it adds nothing to the window, the baseline or the rejection timer, and the previous sample
 carries the energy across the stall if it lasts no longer than 30 s. Without this, a step over
 150 W during a long stall would be rejected for 20 s and then, the held value being perfectly
-steady, accepted as a new baseline. Runs of skipped polls lasting 3 s or more are logged at debug level; shorter repeats are the Envoy's own update rate.
+steady, accepted as a new baseline. Runs of skipped polls lasting 3 s or more are logged at
+debug level; shorter repeats are the Envoy's own update rate.
 
 ## 7. Tests
 
