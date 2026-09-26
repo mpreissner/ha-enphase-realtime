@@ -43,9 +43,28 @@ land in the overhead too. The README says so.
 
 **What the overhead includes.** Only what draws from the System Controller's side of the Envoy's
 CTs. On the reference site the IQ Gateway is powered from a breaker in the System Controller, and
-the Neutral Forming Transformer's relay is open (it is idle), so the figure is the Gateway, the
-System Controller and the batteries' own draw. On a grid-tied install where the Gateway draws
-from the combiner bus ahead of the production CTs, its draw isn't in the overhead at all.
+the Neutral Forming Transformer's relay is open (it is idle), so the figure is the Gateway and
+the System Controller. On a grid-tied install where the Gateway draws from the combiner bus ahead
+of the production CTs, its draw isn't in the overhead at all.
+
+**Expected draw.** Continuous figures from the user's research:
+
+| Device | Draw | In the overhead on the reference site |
+|---|---|---|
+| IQ Gateway | up to about 5 W | yes |
+| System Controller internal circuitry | 5–10 W | yes |
+| Neutral Forming Transformer, energized and idle | 15–25 W | no, its relay is open |
+| IQ Battery 5P BMC | 15–20 W per battery | probably not, see below |
+
+So the reference site should read about 10–15 W; it measures 8–12 W. Closing the NFT relay
+should add 15–25 W.
+
+The batteries keep their chemistry and BMC powered from a small constant draw, idle losses of up
+to about 500 Wh a day (about 20 W). That draw most likely comes out of the battery's own reading:
+from the cells it lowers the state of charge without changing the AC output, and from the grid
+it shows as charging. Either way it is inside the storage term of the Envoy load, so it cancels
+out of the overhead. This is unverified; if it were wrong, the overhead would read 15–20 W more
+per battery than the table above, and it doesn't.
 
 ## 4. Options
 
