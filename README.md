@@ -178,8 +178,8 @@ This integration stands on the work of two projects:
   for this one.
 - **[Enphase-Envoy-mqtt-json](https://github.com/vk2him/Enphase-Envoy-mqtt-json)** by vk2him and
   its contributors, which showed that the Envoy's real-time meter stream and fast `/ivp`
-  endpoints can drive Home Assistant at about once a second. The reference site ran it for
-  months, and its captures were the raw material for this integration's protocol notes.
+  endpoints can drive Home Assistant at about once a second. The reference site ran it before
+  this integration existed, and its captures were the raw material for this integration's protocol notes.
 
 No code is copied from either project; this is a separate implementation. Thank you to everyone
 who has worked on them.
