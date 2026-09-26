@@ -1,0 +1,69 @@
+[
+  {
+    "type": "ENCHARGE",
+    "devices": [
+      {
+        "part_num": "839-01926-r06",
+        "serial_num": "900000000002",
+        "installed": 1790074649,
+        "device_status": [
+          "envoy.global.ok",
+          "prop.done"
+        ],
+        "last_rpt_date": 1790257720,
+        "admin_state": 6,
+        "admin_state_str": "ENCHG_STATE_READY",
+        "created_date": 1790074649,
+        "img_load_date": 1790074649,
+        "img_pnum_running": "3.0.9001_rel/31.50",
+        "bmu_fw_version": "3.8.78",
+        "bmu_ibl_fw_version": "",
+        "communicating": true,
+        "sleep_enabled": false,
+        "percentFull": 59,
+        "temperature": 23,
+        "maxCellTemp": 23,
+        "reported_enc_grid_state": "grid-tied",
+        "comm_level_sub_ghz": 0,
+        "comm_level_2_4_ghz": 0,
+        "led_status": 15,
+        "dc_switch_off": false,
+        "encharge_rev": 3,
+        "encharge_capacity": 5000,
+        "phase": "ph-a",
+        "der_index": 2
+      }
+    ]
+  },
+  {
+    "type": "ENPOWER",
+    "isMidDevice": true,
+    "devices": [
+      {
+        "part_num": "865-00378-r41",
+        "serial_num": "900000000003",
+        "installed": 1790074596,
+        "device_status": [
+          "envoy.global.ok",
+          "prop.done"
+        ],
+        "last_rpt_date": 1790257928,
+        "admin_state": 24,
+        "admin_state_str": "ENPWR_STATE_OPER_CLOSED",
+        "created_date": 1790074596,
+        "img_load_date": 1790074596,
+        "img_pnum_running": "3.0.7296_rel/31.50",
+        "communicating": true,
+        "temperature": 77,
+        "comm_level_sub_ghz": 0,
+        "comm_level_2_4_ghz": 0,
+        "mains_admin_state": "closed",
+        "mains_oper_state": "closed",
+        "Enpwr_grid_mode": "grid-tied",
+        "Enchg_grid_mode": "multimode-ongrid",
+        "Enpwr_relay_state_bm": 3532,
+        "Enpwr_curr_state_id": 16
+      }
+    ]
+  }
+]

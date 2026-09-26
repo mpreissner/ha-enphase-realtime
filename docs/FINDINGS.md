@@ -20,7 +20,7 @@ Base `https://<envoy>/`, header `Authorization: Bearer <owner JWT>`, self-signed
 | What | Endpoint | Field |
 |---|---|---|
 | Charge-from-grid in effect | `/ivp/sc/sched` | `"Charge From Grid Allowed"` (bool) |
-| Controller mode | `/ivp/sc/sched` | `acb_current_mode`: 2 = CG (charge from grid), 6 = CP (charge from PV) |
+| Controller mode | `/ivp/sc/sched` | `acb_current_mode`, an index into `sched_mode_key` (2 = CG, 6 = CP). Not a live status: on 2026-09-25 it still read CG a day after charge from grid was turned off, with the battery at 0 W. Not exposed. |
 | Commanded setpoint | `/ivp/sc/status` | `response.groups[ENC].setpoint_val` (-100 = full charge, 0 = idle); `acbstats.encharge_feedback.raw_setpt` |
 | Reserve (very-low SoC) | `/ivp/ensemble/secctrl` | `VLS_Limit` (%) = cloud `veryLowSoc` |
 | Backup SoC target | `/ivp/ensemble/secctrl` | `configured_backup_soc`, `adjusted_backup_soc` |
@@ -33,6 +33,20 @@ grid. That is probably how the controller drives the battery (not yet confirmed)
 Slow endpoints to avoid polling: `production.json` (30–55 s), `inventory.json` (~20 s),
 `home.json` (over 60 s). Installer-only endpoints return 401 with an owner token: `/ivp/peb/*`,
 `/ivp/tpm/*`, `/ivp/meters/cts`, `/installer/*`, `/ivp/mod/<eid>/mode/power`.
+
+### Update rates (measured 2026-09-25, D8.3.6086, MQTT add-on running)
+
+- **`/ivp/livedata/status` polled at 1 s** (plus `/ivp/ensemble/relay`): 152 polls, 0
+  failures. Median gap 1.10 s, mean 1.21 s. Fetch mean 0.36 s, worst 1.58 s. The Envoy kept
+  answering through every stream stall below. This is also where the MQTT project gets its
+  1 Hz on battery sites: it polls this endpoint in a loop with a 0.6 s sleep. It reads
+  `/stream/meter` only on v5 Envoys.
+- **`/stream/meter`**: about one frame a second on average, and none lost. But the Envoy
+  regularly holds frames for 3–13 s and then sends them as a burst of up to 8 frames within
+  30 ms. There were 6 stalls in 3 minutes, whether the live poll ran at 1 s (33 s stalled in
+  total) or slower (39 s). The client reads with `iter_any()`, so the buffering happens on the
+  Envoy's side. Treat the stream as detail for dashboards, not as a trigger that needs low
+  latency.
 
 **Dry contacts: never write.** On the reference system they switch real loads (HVAC and dryer).
 
@@ -49,6 +63,13 @@ Slow endpoints to avoid polling: `production.json` (30–55 s), `inventory.json`
 
 `storage_settings` in the tariff file is a stale copy (dated weeks before the test). Don't
 treat it as the current state.
+
+State left on the reference Envoy (checked 2026-09-25): the tariff file matches the original
+except `storage_settings.charge_from_grid`, which the last test set to `false` and which was
+kept, so a firmware that honours the file wouldn't charge from grid. The must-charge window is
+off (duration 0, mode CP). Cloud changes to charge from grid did not rewrite the file
+(`storage_settings.date` unchanged), and `/ivp/sc/sched` `acb_current_mode` kept reading CG
+through them while the battery charged and stopped as told.
 
 ## Enlighten cloud battery API (write)
 
@@ -68,9 +89,10 @@ Base `https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1`.
   cookies on their own get a 302 redirect to HTML.
 - **Writes:** also need `X-XSRF-Token`, set to the value of the `BP-XSRF-Token` cookie. The
   server sets that cookie on any GET, so do a GET right before each write.
-- **Still open:** confirm that `POST /login/login.json` (`user[email]`, `user[password]`)
-  returns `_enlighten_4_session`. The integration needs this so it can sign in again when the
-  session expires. The captured session expired about a week after capture.
+- **Login:** `POST /login/login.json` (`user[email]`, `user[password]`) sets
+  `_enlighten_4_session` (HttpOnly, Secure), whose value equals the body's `session_id`, so the
+  integration can sign in again when the session expires (spike S1, settled September 2026).
+  The captured session expired about a week after capture.
 
 ### Verified write bodies
 

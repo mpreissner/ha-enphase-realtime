@@ -8,19 +8,15 @@ on:
 
 jobs:
   test:
-    name: ruff + pytest (py${{ matrix.python-version }})
+    name: ruff + pytest (py3.14)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # Home Assistant 2024.12 runs on 3.12; 3.13 is what current cores use.
-        python-version: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
+          # Home Assistant 2026.8, the oldest release supported, requires 3.14.
+          python-version: "3.14"
 
       - name: Install dev toolchain
         # --group needs pip 25.1+, which is newer than some runner images ship.
@@ -37,18 +33,42 @@ jobs:
       - name: Test
         run: pytest -q
 
+  ha-tests:
+    name: HA tests (py3.14)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          # Whatever current Home Assistant requires; pytest-homeassistant-custom-component
+          # pins the matching HA release.
+          python-version: "3.14"
+
+      - name: Install Home Assistant test harness
+        run: |
+          python -m pip install --upgrade pip
+          pip install --group ha
+
+      - name: Test
+        # The package root, not the integration directory: HA must import the integration
+        # as custom_components.enphase_realtime, or its exception classes load twice.
+        run: pytest -q -o pythonpath=. tests_ha
+
   hassfest:
     name: hassfest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: home-assistant/actions/hassfest@master
 
   hacs:
     name: HACS
+    # HACS can't read private repos, so its manifest checks fail until the repo is public.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: hacs/action@main
         with:
           category: integration

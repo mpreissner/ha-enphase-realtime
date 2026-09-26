@@ -1,0 +1,107 @@
+{
+  "connection": {
+    "mqtt_state": "connected",
+    "prov_state": "configured",
+    "auth_state": "ok",
+    "sc_stream": "enabled",
+    "sc_debug": "disabled"
+  },
+  "meters": {
+    "last_update": 1790257937,
+    "soc": 59,
+    "main_relay_state": 1,
+    "gen_relay_state": 5,
+    "backup_bat_mode": 0,
+    "backup_soc": 100,
+    "is_split_phase": 1,
+    "phase_count": 2,
+    "enc_agg_soc": 59,
+    "enc_agg_energy": 2950,
+    "acb_agg_soc": 0,
+    "acb_agg_energy": 0,
+    "pv": {
+      "agg_p_mw": 0,
+      "agg_s_mva": 24251,
+      "agg_p_ph_a_mw": 0,
+      "agg_p_ph_b_mw": 0,
+      "agg_p_ph_c_mw": 0,
+      "agg_s_ph_a_mva": 9893,
+      "agg_s_ph_b_mva": 14358,
+      "agg_s_ph_c_mva": 0
+    },
+    "storage": {
+      "agg_p_mw": 0,
+      "agg_s_mva": -2981,
+      "agg_p_ph_a_mw": 0,
+      "agg_p_ph_b_mw": 0,
+      "agg_p_ph_c_mw": 0,
+      "agg_s_ph_a_mva": 5702,
+      "agg_s_ph_b_mva": -8683,
+      "agg_s_ph_c_mva": 0
+    },
+    "grid": {
+      "agg_p_mw": 1213800,
+      "agg_s_mva": 1642548,
+      "agg_p_ph_a_mw": 628518,
+      "agg_p_ph_b_mw": 585281,
+      "agg_p_ph_c_mw": 0,
+      "agg_s_ph_a_mva": 860349,
+      "agg_s_ph_b_mva": 782199,
+      "agg_s_ph_c_mva": 0
+    },
+    "load": {
+      "agg_p_mw": 1213800,
+      "agg_s_mva": 1663818,
+      "agg_p_ph_a_mw": 628518,
+      "agg_p_ph_b_mw": 585281,
+      "agg_p_ph_c_mw": 0,
+      "agg_s_ph_a_mva": 875944,
+      "agg_s_ph_b_mva": 787874,
+      "agg_s_ph_c_mva": 0
+    },
+    "generator": {
+      "agg_p_mw": 0,
+      "agg_s_mva": 0,
+      "agg_p_ph_a_mw": 0,
+      "agg_p_ph_b_mw": 0,
+      "agg_p_ph_c_mw": 0,
+      "agg_s_ph_a_mva": 0,
+      "agg_s_ph_b_mva": 0,
+      "agg_s_ph_c_mva": 0
+    },
+    "iqpm": {
+      "status": true,
+      "issupported": true,
+      "total_PCU_count": 6,
+      "running_PCU_count": 1
+    }
+  },
+  "tasks": {
+    "task_id": 2072606140,
+    "timestamp": 1790158641
+  },
+  "counters": {
+    "main_CfgLoad": 2,
+    "main_CfgChanged": 1,
+    "main_taskUpdate": 4,
+    "MqttClient_publish": 14299,
+    "MqttClient_respond": 152,
+    "MqttClient_msgarrvd": 77,
+    "MqttClient_reconnect": 1,
+    "MqttClient_create": 3,
+    "MqttClient_setCallbacks": 3,
+    "MqttClient_connect": 3,
+    "MqttClient_subscribe": 3,
+    "SSL_Keys_Create": 3,
+    "sc_SendStreamCtrl": 82,
+    "rest_Status": 201265
+  },
+  "dry_contacts": {
+    "": {
+      "dry_contact_id": "",
+      "dry_contact_type": "",
+      "dry_contact_load_name": "",
+      "dry_contact_status": 0
+    }
+  }
+}

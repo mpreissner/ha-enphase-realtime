@@ -12,15 +12,25 @@ dev = [
     # turns CI red on a pull request that changed nothing. Raise the cap
     # deliberately, with whatever fixes the new rules ask for.
     "ruff>=0.16,<0.17",
-    # Imported by the cloud client under test.
-    "requests>=2.31.0",
+    # Both clients are async; tests drive them (and a fake aiohttp server for
+    # the XSRF write sequence) without Home Assistant installed.
+    "pytest-asyncio>=0.24",
+    # The only runtime dependency, used by both clients. HA ships it, so the
+    # manifest doesn't declare it, but the tests run without HA and need it here.
+    "aiohttp>=3.10",
+]
+# The Home Assistant-level tests in tests_ha/ (config flow, setup, diagnostics). Kept apart from
+# `dev`: this pins an exact Home Assistant and pytest, and needs HA's Python (3.14).
+# Run with `pytest -o pythonpath=. tests_ha`.
+ha = [
+    "pytest-homeassistant-custom-component>=0.13.366",
 ]
 
 [tool.ruff]
 line-length = 100
-# Home Assistant 2024.12 requires Python 3.12, so that is the floor the shipped
-# integration has to run on — not the newer interpreter used for development.
-target-version = "py312"
+# Home Assistant 2026.8, the oldest release supported (hacs.json), requires Python 3.14.
+# It is also the first with DeviceInfo.via_device_id, which the child devices use.
+target-version = "py314"
 
 [tool.ruff.lint]
 # Pinned explicitly. Without a select, the rule set is whatever ruff defaults to
@@ -55,9 +65,12 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Tests assert on internals and use asserts by design.
 "tests/*" = ["S101"]
+"tests_ha/*" = ["S101"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # The integration is what ships and what HA imports, so it is what the tests
-# import too — `enphase_client` resolves inside custom_components/enphase_realtime/.
+# import too — `envoy_client` and `enlighten_client` resolve inside
+# custom_components/enphase_realtime/.
 pythonpath = ["custom_components/enphase_realtime"]
+asyncio_mode = "auto"
