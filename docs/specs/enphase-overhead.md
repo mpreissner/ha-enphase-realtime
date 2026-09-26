@@ -94,5 +94,7 @@ restored across restarts.
 
 - Diagnostics and a distinct mode for partial-backup sites whose CTs are at the service
   entrance, if one turns up.
-- An `invert` flag, if a backup-load sensor reports import as negative. The sign of SPAN's main
-  feed sensor hasn't been checked yet; a large negative overhead would show it's inverted.
+
+The backup-load sensor is taken to report power drawn by the panel as positive. SPAN's main feed
+sensor does (confirmed on the reference site, 2026-09-26), as any correctly installed main
+monitor should, so there is no invert option.

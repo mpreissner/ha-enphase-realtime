@@ -147,8 +147,8 @@ Clearing the option removes both sensors.
 This works with full-home and partial backup, as long as the Envoy's consumption CTs measure
 the System Controller's grid input. If they sit at the utility service instead, anything wired
 upstream of the System Controller ends up in the overhead too. The backup load sensor must
-report power drawn by the panel as positive; a large negative overhead means it reports the
-opposite sign. See the [spec](docs/specs/enphase-overhead.md).
+report power drawn by the panel as positive, as SPAN's main feed and other correctly installed
+main monitors do. A large negative overhead usually means a CT is installed backwards. See the [spec](docs/specs/enphase-overhead.md).
 
 ## Grid relay
 
