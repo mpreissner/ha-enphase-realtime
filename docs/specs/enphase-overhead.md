@@ -162,6 +162,20 @@ carries the energy across the stall if it lasts no longer than 30 s. Without thi
 steady, accepted as a new baseline. Runs of skipped polls lasting 3 s or more are logged at
 debug level; shorter repeats are the Envoy's own update rate.
 
+**When stalls happen.** From 09:39 to 15:36 on 2026-09-26 there were 43 runs of 10 s or more,
+on two schedules, which fits the Envoy's periodic compiling and uploading of data to the cloud:
+
+- About every 10 minutes (median spacing 605 s), lasting 11–25 s. The cycle isn't tied to the
+  clock: it lands 5–10 s later each time, as if its timer restarts when the job ends, and now
+  and then a cycle is missed and the next one starts from there.
+- Hourly at about :18 (10:18:00, 11:18:03, 12:17:59, 13:18:00, 14:17:36, 15:18:02), lasting
+  25–28 s. The one at 14:17:36 ran 57 s, the only stall that day over 30 s.
+
+So stalls take about 3–4 minutes of every hour, and the 30 s limit for carrying energy covers
+all but an unusually long hourly job, which drops under a minute of energy. The Envoy also
+answers more slowly during a stall (median live poll 0.83 s against 0.35 s otherwise), and one
+poll timed out just before the stall at 15:11:50.
+
 ## 7. Tests
 
 - Unit (`tests/test_overhead.py`): the window mean and expiry, unit conversion, the energy sum,
