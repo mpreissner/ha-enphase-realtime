@@ -89,9 +89,10 @@ Base `https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1`.
   cookies on their own get a 302 redirect to HTML.
 - **Writes:** also need `X-XSRF-Token`, set to the value of the `BP-XSRF-Token` cookie. The
   server sets that cookie on any GET, so do a GET right before each write.
-- **Still open:** confirm that `POST /login/login.json` (`user[email]`, `user[password]`)
-  returns `_enlighten_4_session`. The integration needs this so it can sign in again when the
-  session expires. The captured session expired about a week after capture.
+- **Login:** `POST /login/login.json` (`user[email]`, `user[password]`) sets
+  `_enlighten_4_session` (HttpOnly, Secure), whose value equals the body's `session_id`, so the
+  integration can sign in again when the session expires (spike S1, settled September 2026).
+  The captured session expired about a week after capture.
 
 ### Verified write bodies
 

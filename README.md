@@ -18,6 +18,69 @@ Coming from the core integration? See [docs/MIGRATION.md](docs/MIGRATION.md).
 See [docs/specs/core-integration.md](docs/specs/core-integration.md) for the design and
 [docs/FINDINGS.md](docs/FINDINGS.md) for the protocol notes.
 
+## Status
+
+**Beta.** Everything in the design is built and covered by tests, but it has only run on one
+site: a split-phase US system with an IQ System Controller, one IQ Battery 5P and Envoy
+firmware D8.3.6086.
+
+| Feature | State |
+|---|---|
+| Real-time power, energy, battery and System Controller sensors | Working on the reference site. The lifetime energy counters match the core integration's |
+| Charge from grid switch | Working. The cloud write and its local confirmation have been checked on the live system |
+| Battery shutdown level number | Working. The cloud write and its local confirmation have been checked on the live system |
+| Reserve battery level number | The cloud write is proven. Whether the Envoy reports the new value where the integration looks for it hasn't been checked yet, so confirmation may time out even when the change took effect |
+| Grid enabled switch | **Experimental.** Built and tested against captured data, but it has never switched a real relay. Off by default |
+| Microinverter sensors | Built. Not checked against a producing array |
+| 1 s polling over a full day | Not yet measured. If your Envoy starts timing out, raise the live poll interval |
+| Single-phase and three-phase sites, non-US sites | Supported by design, untested. Diagnostics from these sites are very welcome |
+
+## Requirements
+
+- Home Assistant 2026.8 or newer.
+- An Enphase IQ Gateway (Envoy) on firmware 7.0 or newer. Older Envoys should stay on the core
+  integration.
+- An Enphase Enlighten account for the site (the owner's login). It is used to fetch the
+  Envoy's owner token and to read and change battery settings.
+- Built for sites with an IQ System Controller and IQ Batteries. A site without them gets the
+  power and energy sensors only.
+
+## Installation
+
+**HACS:** HACS → ⋮ → **Custom repositories**, add `https://github.com/mpreissner/ha-enphase-realtime`
+as an **Integration**, then install **Enphase Realtime** and restart Home Assistant.
+
+**Manual:** copy `custom_components/enphase_realtime` into your Home Assistant
+`config/custom_components/` directory and restart.
+
+## Setup
+
+**Settings → Devices & services → Add integration → Enphase Realtime.**
+
+1. Enter the Envoy's host name or IP address and your Enlighten email and password.
+2. If the account has more than one site, choose the one this Envoy belongs to.
+3. Check the detected phase layout and hardware, and confirm the country and time zone.
+   Battery schedules use the site's time zone.
+
+If Enphase later refuses the saved login, Home Assistant asks you to log in again.
+
+**What you get**, on devices named as in the core integration (`Envoy <serial>`,
+`Enpower <serial>`, `Encharge <serial>`, `Inverter <serial>`):
+
+- power: production, consumption, net consumption and battery flow, plus grid, load and PV
+  power; per-phase voltage, current and power factor (disabled by default)
+- lifetime energy counters for the Energy dashboard
+- battery: charge, available energy, capacity, reserve, state of health, and per-battery
+  status and temperatures
+- IQ System Controller: grid status, temperature and communication status
+- battery settings from the cloud: storage mode (read-only), charge from grid switch, battery
+  shutdown level and reserve battery level numbers, and a "Pending cloud change" sensor
+- dry contacts: state and settings, read-only
+- microinverters: last reported power and time (disabled by default)
+
+The full list, with the core integration's equivalent for each entity, is in section 5 of the
+[spec](docs/specs/core-integration.md#5-entities-and-parity-with-the-core-integration).
+
 ## Update rates and the recorder
 
 By default the power sensors update about once a second, so that automations such as load
@@ -76,4 +139,27 @@ The switch shows what the relay has been told. For whether the house is actually
 the **Grid status** binary sensor on the IQ System Controller device. Grid status off with Grid
 enabled on means the grid has gone.
 
-**Status:** pre-alpha, not yet functional.
+The relay write hasn't yet been tried on a live system (see [Status](#status)). Test it once
+while you're at the System Controller, with the battery well charged.
+
+## Known limitations
+
+- **Storage mode** (Self-Consumption, Full Backup and so on) is read-only. Change it in the
+  Enphase app.
+- **Dry contacts** are read-only.
+- **Energy today and last 7 days** aren't provided. Use the Energy dashboard, or a
+  `utility_meter` on the lifetime sensors.
+- **Battery settings need the cloud.** The Envoy ignores local battery writes on current
+  firmware, so these controls stop working when Enphase's servers or your internet
+  connection are down. The sensors keep working, because they're all read locally.
+- **Battery flows count as consumption.** Charging the battery raises lifetime energy
+  consumption, as the Envoy calculates it.
+- **Charge from grid** is only offered where the site's Enphase settings allow it. The
+  disclaimer it needs has only been checked for US sites.
+
+## Reporting problems
+
+Open an [issue](https://github.com/mpreissner/ha-enphase-realtime/issues) and attach the
+integration's diagnostics: **Settings → Devices & services → Enphase Realtime → ⋮ → Download
+diagnostics**. Serial numbers, tokens and login details are removed from the download. Reports
+from single-phase, three-phase and non-US sites help most.

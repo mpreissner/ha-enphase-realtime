@@ -1,7 +1,8 @@
 # Spec: Enphase Realtime core integration
 
-Status: draft, 2026-09-24 (revised the same day after a review of the captured samples;
-revised 2026-09-25 for 1 s telemetry, see 3.1 and 3.2)
+Status: implemented, 2026-09-26. All five phases are merged (section 9); spikes S3, S4 and
+S10 are still open, and S8 and S9 wait on users (section 10). Drafted 2026-09-24, revised
+2026-09-25 for 1 s telemetry (3.1 and 3.2) and for core entity names (5).
 Protocol evidence: [../FINDINGS.md](../FINDINGS.md)
 
 ## 1. Goal
@@ -543,27 +544,36 @@ to keep `livedata` fresh and changes nothing the system does.
   - the `pendingGateways` parse, including a missing key
 - **Confirmation tests:** the `LocalConfirm` state machine, run as a pure function of
   (requested, local value, elapsed time).
-- **CI:** the existing workflow (ruff, pytest, hassfest, HACS). HA-level tests with
-  `pytest-homeassistant-custom-component` are deferred until phase 2 is done.
+- **HA-level tests** (`tests_ha/`, with `pytest-homeassistant-custom-component`): the config
+  flow, setup and unload, entity names and IDs, the controls and diagnostics, against faked
+  clients that run the real parsers on the fixtures.
+- **CI:** ruff, pytest, the HA-level tests and hassfest on every push and PR. The HACS check
+  is skipped while the repository is private.
 
 ## 9. Delivery phases
 
-Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`.
+Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`. Status as of
+2026-09-26 is in bold after each phase.
 
 1. **Clients.** `envoy_client` (auth, local, stream) and `enlighten_client` (session, battery),
-   plus fixtures and tests. Spikes S1 and S2 resolved.
+   plus fixtures and tests. Spikes S1 and S2 resolved. **Done.**
 2. **Read-only integration.** Config flow, the four coordinators, and all read entities in
    section 5, plus diagnostics. **Done when** it runs side by side with the core integration for
-   a few days and the values agree.
+   a few days and the values agree. **Done:** the lifetime counters match core (S5).
 3. **Battery control.** Charge-from-grid switch and very-low SoC number, with local
-   confirmation. The backup-reserve number once S3 passes.
+   confirmation. The backup-reserve number once S3 passes. **Built, including the reserve
+   number; the switch and shutdown level are verified live, the reserve awaits S3.**
 4. **1 s telemetry.** `LiveCoordinator`, the stream write change and the new defaults (3.1,
    3.2), the `sc_stream` enable, and the README recorder guidance. **Done when** S10 is
    settled and a day at 1 s shows no Envoy errors or timeouts beyond the occasional miss.
+   **Built; the day-long run (S10) is still to do.**
 5. **Grid relay control** (once S4 passes) and a migration guide:
    - disable the core integration
    - remove the `_2` suffixes to take over the core entity IDs, which keeps automations
      (including ones on the core grid status and grid enabled entities) and history
+
+   **Built, with the migration guide. The relay write is unverified until S4, so the README
+   marks the switch experimental.**
 
 ## 10. Spikes and open questions
 
