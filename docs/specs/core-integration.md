@@ -378,8 +378,9 @@ stream is off.
   `whDlvdCum` = 753,640 Wh = readings import 1,124,885 − export 371,245, and `whRcvdCum` = 0.
   That can't feed the Energy dashboard's separate import and export.
 - Reference-site check: reports `total-consumption` 1,496,484 = production 742,844 + net
-  753,640. Battery flows are **not** netted out, so charging the battery counts as
-  consumption. The README states this.
+  753,640. Battery flows are **not** netted out, so charging the battery from the grid
+  counts as consumption. Charging from PV probably doesn't, but the array wasn't producing
+  when this was checked. The README states this.
 
 **Parsing rules.** `readings` can include eids that `/ivp/meters` doesn't list. The reference
 site has an extra `1023410688`, probably an internal or IQ Meter Collar channel. Skip any eid

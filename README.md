@@ -75,7 +75,7 @@ If Enphase later refuses the saved login, Home Assistant asks you to log in agai
 - IQ System Controller: grid status, temperature and communication status
 - battery settings from the cloud: storage mode (read-only), charge from grid switch, battery
   shutdown level and reserve battery level numbers, and a "Pending cloud change" sensor
-- dry contacts: state and settings, read-only
+- dry contacts: state and settings (no controls yet)
 - microinverters: last reported power and time (disabled by default)
 
 The full list, with the core integration's equivalent for each entity, is in section 5 of the
@@ -146,14 +146,16 @@ while you're at the System Controller, with the battery well charged.
 
 - **Storage mode** (Self-Consumption, Full Backup and so on) is read-only. Change it in the
   Enphase app.
-- **Dry contacts** are read-only.
+- **Dry contacts** have no controls yet. The Envoy may well accept dry-contact writes, but
+  they haven't been tested, so the integration only shows their state and settings.
 - **Energy today and last 7 days** aren't provided. Use the Energy dashboard, or a
   `utility_meter` on the lifetime sensors.
 - **Battery settings need the cloud.** The Envoy ignores local battery writes on current
   firmware, so these controls stop working when Enphase's servers or your internet
   connection are down. The sensors keep working, because they're all read locally.
-- **Battery flows count as consumption.** Charging the battery raises lifetime energy
-  consumption, as the Envoy calculates it.
+- **Charging the battery from the grid counts as consumption.** It raises lifetime energy
+  consumption, as the Envoy calculates it. Charging from PV probably doesn't, but that hasn't
+  been checked yet.
 - **Charge from grid** is only offered where the site's Enphase settings allow it. The
   disclaimer it needs has only been checked for US sites.
 
