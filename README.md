@@ -165,3 +165,24 @@ Open an [issue](https://github.com/mpreissner/ha-enphase-realtime/issues) and at
 integration's diagnostics: **Settings → Devices & services → Enphase Realtime → ⋮ → Download
 diagnostics**. Serial numbers, tokens and login details are removed from the download. Reports
 from single-phase, three-phase and non-US sites help most.
+
+## Acknowledgements
+
+This integration stands on the work of two projects:
+
+- **[Enphase Envoy](https://www.home-assistant.io/integrations/enphase_envoy/)**, the Home
+  Assistant core integration, and **[pyenphase](https://github.com/pyenphase/pyenphase)**, the
+  library behind it. Their device and entity naming is the model for this integration's, so
+  users can move over without losing history, and their work mapping the Envoy's local API,
+  including the grid relay and the IQ Battery and System Controller data, was the starting point
+  for this one.
+- **[Enphase-Envoy-mqtt-json](https://github.com/vk2him/Enphase-Envoy-mqtt-json)** by vk2him and
+  its contributors, which showed that the Envoy's real-time meter stream and fast `/ivp`
+  endpoints can drive Home Assistant at about once a second. The reference site ran it for
+  months, and its captures were the raw material for this integration's protocol notes.
+
+No code is copied from either project; this is a separate implementation. Thank you to everyone
+who has worked on them.
+
+Enphase, Envoy, IQ and Enlighten are trademarks of Enphase Energy, Inc. This project isn't
+affiliated with or endorsed by Enphase Energy.
