@@ -103,8 +103,8 @@ restored across restarts.
   load gives about 5.5 W + 0.22 % of load, so it is mostly a fixed draw. Load above 2.5 kW
   hasn't been seen yet.
 - SPAN's main feed reports a step about 1.4 s after the Envoy (median of the matched steps;
-  −0.2 to 3.3 s), sometimes as a
-  ramp over two or three updates, and sometimes shows sub-second blips the Envoy never sees.
+  −0.2 to 3.3 s), sometimes as a ramp over two or three updates, and sometimes shows
+  sub-second blips the Envoy never sees.
 - The Envoy's livedata stalls: 38 gaps of over 8 s in four hours, clustered around every
   ten minutes, with polls taking 1–2 s and returning stale load (once 1164 W for about 7 s while
   the panel drew 2400 W), and 15 relay timeouts.
