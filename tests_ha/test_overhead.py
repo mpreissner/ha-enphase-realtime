@@ -229,3 +229,39 @@ async def test_only_a_lasting_stale_run_is_logged(
     assert "Envoy load held" in caplog.text
     await poll(load_moves=True)
     assert "Envoy load moving again" in caplog.text
+
+
+async def test_a_held_backup_load_is_skipped(
+    hass: HomeAssistant, fake: FakeEnphase, clock: Clock, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level("DEBUG", logger="custom_components.enphase_realtime.sensor")
+    hass.states.async_set(BACKUP, "1200", {"unit_of_measurement": "W"})
+    entry = _entry(**{CONF_BACKUP_LOAD_ENTITY: BACKUP})
+    await _setup(hass, entry)
+    load = 1213.8
+
+    async def poll(backup: float) -> None:
+        # Re-set every poll, as the SPAN integration re-reported its frozen value.
+        nonlocal load
+        load += 1
+        _set_load(fake, load)
+        hass.states.async_set(BACKUP, str(backup), {"unit_of_measurement": "W"})
+        clock.now += 10
+        await _live_tick(hass, entry)
+
+    for _ in range(3):
+        await poll(1200)
+    assert "backup load held" not in caplog.text
+    await poll(1200)
+    assert "backup load held at 1200.0 W for 40 s" in caplog.text
+    energy = float(_state(hass, ENERGY).state)
+
+    # Moving again, but the samples wait for the backup load to settle.
+    for i in range(1, 12):
+        await poll(1200 + i)
+    assert float(_state(hass, ENERGY).state) == energy
+    assert "taking samples again" not in caplog.text
+    await poll(1212)
+    assert "backup load fresh for 120 s, taking samples again" in caplog.text
+    await poll(1213)
+    assert float(_state(hass, ENERGY).state) > energy

@@ -32,6 +32,13 @@ STEADY = 5.0
 # `meters.last_update` but the same power values; a real load doesn't repeat to the milliwatt.
 # A poll whose Envoy load equals the previous one is skipped.
 
+# Stale backup load (spec 6). A backup-load sensor that stops getting data can hold its last value,
+# then replay the backlog as new values once it reconnects. A value unchanged for longer than
+# BACKUP_STALE_AFTER counts as missing, and after the sensor has been missing or stale, samples
+# wait until it has been fresh for BACKUP_SETTLE s.
+BACKUP_STALE_AFTER = 30.0
+BACKUP_SETTLE = 120.0
+
 _TO_WATTS = {"mW": 1e-3, "W": 1.0, "kW": 1e3, "MW": 1e6, "GW": 1e9}
 
 
@@ -67,12 +74,28 @@ class Overhead:
         # The previous poll's Envoy load, and when the current run of repeats began.
         self._envoy_load: float | None = None
         self.stale_since: float | None = None
+        # The last poll at which the backup load was missing or stale; None once it has been
+        # fresh for BACKUP_SETTLE s.
+        self.backup_bad_at: float | None = None
 
-    def add(self, now: float, envoy_load: float | None, backup_load: float | None) -> None:
-        """One live poll. A missing reading is a gap: no sample, and no energy for it. A stale
-        one is skipped: the previous sample stands, and carries the energy across a stall no
-        longer than MAX_GAP."""
+    def add(
+        self,
+        now: float,
+        envoy_load: float | None,
+        backup_load: float | None,
+        backup_age: float = 0.0,
+    ) -> None:
+        """One live poll. `backup_age` is how long the backup load has held its value. A missing
+        reading is a gap: no sample, and no energy for it; so is a stale backup load, and the
+        settling after it. A stale Envoy load is skipped: the previous sample stands, and carries
+        the energy across a stall no longer than MAX_GAP."""
         self._expire(now)
+        if backup_load is None or backup_age > BACKUP_STALE_AFTER:
+            self.backup_bad_at = now
+        elif self.backup_bad_at is not None and now - self.backup_bad_at >= BACKUP_SETTLE:
+            self.backup_bad_at = None
+        if self.backup_bad_at is not None:
+            backup_load = None
         stale = envoy_load is not None and envoy_load == self._envoy_load
         self._envoy_load = envoy_load
         if stale:

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pytest
 from overhead import (
+    BACKUP_SETTLE,
+    BACKUP_STALE_AFTER,
     BASELINE,
     MAX_GAP,
     MIN_BASELINE,
@@ -215,3 +217,58 @@ def test_a_stall_is_not_taken_as_a_new_level() -> None:
     for i in range(2, int(REBASE_AFTER + 2 * STEADY)):
         o.add(t + i, 1500, 3000)
     assert o.mean(t + REBASE_AFTER + 2 * STEADY) < 30
+
+
+def test_a_stale_backup_load_is_a_gap() -> None:
+    o = Overhead()
+    t = _warm(o)
+    energy = o.energy_wh
+    # The backup load stopped changing BACKUP_STALE_AFTER s ago: its value is not trusted.
+    o.add(t + 1, 1500, 1000, backup_age=BACKUP_STALE_AFTER + 1)
+    assert o.backup_bad_at == t + 1
+    assert o.mean(t + 1) == pytest.approx(10)
+    assert o.energy_wh == energy
+
+
+def test_samples_resume_once_the_backup_load_has_settled() -> None:
+    o = Overhead()
+    t = _warm(o)
+    o.add(t + 1, 1500, 1000, backup_age=BACKUP_STALE_AFTER + 1)
+    energy = o.energy_wh
+    # Fresh again, but a backlog can still be replaying: the samples wait BACKUP_SETTLE s.
+    for i in range(2, int(BACKUP_SETTLE) + 1):
+        o.add(t + i, 1500 + i, 1000 + i)
+        assert o.backup_bad_at == t + 1
+    assert o.energy_wh == energy
+    assert o.mean(t + BACKUP_SETTLE) == pytest.approx(10)
+    o.add(t + 1 + BACKUP_SETTLE, 1010, 1000)
+    assert o.backup_bad_at is None
+    o.add(t + 2 + BACKUP_SETTLE, 1011, 1001)
+    assert o.energy_wh == pytest.approx(energy + 10 / 3600)
+
+
+def test_a_missing_backup_load_starts_the_settling() -> None:
+    o = Overhead()
+    t = _warm(o)
+    o.add(t + 1, 1500, None)
+    o.add(t + 2, 1500, 1000)
+    assert o.backup_bad_at == t + 1
+    assert o.mean(t + 2) == pytest.approx(10)
+
+
+def test_a_missing_envoy_load_does_not_start_the_settling() -> None:
+    o = Overhead()
+    t = _warm(o)
+    o.add(t + 1, None, 1000)
+    assert o.backup_bad_at is None
+    o.add(t + 2, 1030, 1000)
+    o.add(t + 3, 1031, 1001)
+    assert o.mean(t + 3) == pytest.approx((10 * BASELINE + 30 + 30) / (BASELINE + 2))
+
+
+def test_a_backup_load_changing_within_the_limit_is_used() -> None:
+    o = Overhead()
+    t = _warm(o)
+    o.add(t + 1, 1030, 1000, backup_age=BACKUP_STALE_AFTER)
+    assert o.backup_bad_at is None
+    assert o.mean(t + 1) == pytest.approx((10 * BASELINE + 30) / (BASELINE + 1))

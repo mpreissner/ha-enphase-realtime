@@ -6,6 +6,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -476,6 +477,10 @@ class OverheadFeed:
         self.entities: list[SensorEntity] = []
         # Whether the current run of skipped (stale) polls has been logged.
         self._stale_logged = False
+        # The backup load's last_changed, and the monotonic time this feed first saw it. Ages
+        # are taken on the monotonic clock, so a wall-clock step can't make the value look stale.
+        self._backup_changed: datetime | None = None
+        self._backup_seen = 0.0
 
     @callback
     def sample(self) -> None:
@@ -487,9 +492,28 @@ class OverheadFeed:
         backup = None
         if (state := self.hass.states.get(self.backup_entity)) is not None:
             backup = to_watts(state.state, state.attributes.get(ATTR_UNIT_OF_MEASUREMENT))
+            if state.last_changed != self._backup_changed:
+                self._backup_changed = state.last_changed
+                self._backup_seen = now
+        backup_age = now - self._backup_seen
         rejecting_since = self.overhead.rejecting_since
         stale_since = self.overhead.stale_since
-        self.overhead.add(now, load, backup)
+        backup_bad_at = self.overhead.backup_bad_at
+        self.overhead.add(now, load, backup, backup_age)
+        if backup_bad_at is None and self.overhead.backup_bad_at is not None:
+            if backup is None:
+                _LOGGER.debug("Enphase overhead: backup load unavailable, skipping samples")
+            else:
+                _LOGGER.debug(
+                    "Enphase overhead: backup load held at %s W for %.0f s, skipping samples",
+                    backup,
+                    backup_age,
+                )
+        elif backup_bad_at is not None and self.overhead.backup_bad_at is None:
+            _LOGGER.debug(
+                "Enphase overhead: backup load fresh for %.0f s, taking samples again",
+                now - backup_bad_at,
+            )
         if (since := self.overhead.stale_since) is not None:
             if not self._stale_logged and now - since >= OVERHEAD_STALE_LOG_AFTER:
                 _LOGGER.debug(
