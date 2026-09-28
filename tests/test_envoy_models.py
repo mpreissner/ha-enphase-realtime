@@ -311,6 +311,10 @@ def test_dry_contacts() -> None:
     assert set(settings) == set(states)
     assert settings["NC1"].mode == "manual"
     assert (settings["NC1"].soc_low, settings["NC1"].soc_high) == (30.0, 40.0)
+    # Kept whole for writes, strings and all (docs/specs/dry-contacts.md 2).
+    raw = load_json("ivp_ss_dry_contact_settings.json")["dry_contacts"][0]
+    assert settings["NC1"].raw == raw
+    assert settings["NC1"].raw["override"] == "false"
 
 
 def test_inverters() -> None:
