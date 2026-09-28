@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -30,15 +31,23 @@ from .const import (
 from .credentials import TokenKeeper, translate_errors
 from .enlighten_client.battery import BatteryConfigClient
 from .enlighten_client.models import BatterySettings, SiteSettings
-from .envoy_client.errors import EnvoyAuthError, EnvoyError, EnvoyStreamUnavailable
+from .envoy_client.errors import (
+    EnvoyAuthError,
+    EnvoyConnectionError,
+    EnvoyError,
+    EnvoyParseError,
+    EnvoyStreamUnavailable,
+)
 from .envoy_client.local import EnvoyClient
 from .envoy_client.models import (
     DryContactSettings,
+    ExportLimit,
     Inventory,
     Inverter,
     LifetimeEnergy,
     LiveData,
     Meter,
+    PcsSettings,
     PhaseLayout,
     Relay,
     Schedule,
@@ -203,6 +212,15 @@ class FastCoordinator(DataUpdateCoordinator[FastData]):
 # --- Slow ---------------------------------------------------------------------------------------
 
 
+async def _optional[T](read: Awaitable[T]) -> T | None:
+    """A display-only read that mustn't fail the poll: older firmware may not serve it."""
+    try:
+        return await read
+    except (EnvoyConnectionError, EnvoyParseError) as err:
+        _LOGGER.debug("Skipping an optional read: %s", err)
+        return None
+
+
 @dataclass(frozen=True, slots=True)
 class SlowData:
     meters: list[Meter]
@@ -211,6 +229,9 @@ class SlowData:
     dry_contact_settings: dict[str, DryContactSettings]
     dry_contact_states: dict[str, bool]
     inverters: list[Inverter]
+    # Installer settings, read for display only. None where the Envoy doesn't serve them.
+    export_limit: ExportLimit | None = None
+    pcs: PcsSettings | None = None
 
 
 class SlowCoordinator(DataUpdateCoordinator[SlowData]):
@@ -300,6 +321,8 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
                 contacts,
                 states,
                 inverters,
+                export_limit,
+                pcs,
             ) = await asyncio.gather(
                 c.meters(),
                 c.meter_readings(),
@@ -308,11 +331,13 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
                 c.dry_contact_settings() if hw.has_enpower else empty(),
                 c.dry_contact_states() if hw.has_enpower else empty(),
                 c.inverters(),
+                _optional(c.export_limit()),
+                _optional(c.pcs_settings()),
             )
             energy = LifetimeEnergy.from_payloads(meters, readings, reports)
         self._check_layout(meters)
         self._forget_reported(contacts)
-        return SlowData(meters, energy, inventory, contacts, states, inverters)
+        return SlowData(meters, energy, inventory, contacts, states, inverters, export_limit, pcs)
 
     def _check_layout(self, meters: list[Meter]) -> None:
         """An installer changing the CTs needs a reload, not entities rebuilt in place."""

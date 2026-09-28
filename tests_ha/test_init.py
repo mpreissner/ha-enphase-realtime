@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import STATE_UNAVAILABLE
+from homeassistant.const import STATE_UNAVAILABLE, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -179,6 +179,61 @@ async def test_no_battery_skips_battery_endpoints(hass: HomeAssistant, fake: Fak
     assert rt.slow.data.inventory is None
     assert _entity_id(hass, "sensor", "battery_soc") is None
     assert _entity_id(hass, "sensor", "grid_power") is not None
+
+
+INSTALLER = [
+    ("sensor", "export_limit_mode", "soft"),
+    ("sensor", "export_limit", "0.0"),
+    ("sensor", "export_limit_type", "Aggregate"),
+    ("sensor", "main_breaker_rating", "200.0"),
+    ("sensor", "main_busbar_rating", "200.0"),
+    ("sensor", "der_breaker_rating", "40.0"),
+    ("sensor", "consumption_meter_location", "Between_Mains_Supply_and_Main_Load_Panel"),
+    ("binary_sensor", "pcs_mpuavoidance", "on"),
+    ("binary_sensor", "pcs_enchargeoversubscription", "off"),
+]
+
+
+async def test_installer_settings_are_diagnostic_sensors_on_the_envoy(
+    hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
+) -> None:
+    await _setup(hass, config_entry)
+    registry = er.async_get(hass)
+    envoy_id = config_entry.runtime_data.envoy_device_id
+    for platform, key, value in INSTALLER:
+        entity_id = _entity_id(hass, platform, key)
+        assert entity_id, key
+        entry = registry.async_get(entity_id)
+        assert entry is not None
+        assert entry.entity_category is EntityCategory.DIAGNOSTIC, key
+        assert entry.device_id == envoy_id, key
+        state = hass.states.get(entity_id)
+        assert state is not None and state.state == value, key
+
+
+async def test_installer_settings_missing_on_this_firmware(
+    hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
+) -> None:
+    for path in ("/ivp/ss/pel_settings", "/ivp/ss/pcs_settings"):
+        fake.envoy_errors[path] = EnvoyConnectionError(f"{path}: HTTP 404")
+    await _setup(hass, config_entry)
+    assert config_entry.state is ConfigEntryState.LOADED
+    for platform, key, _ in INSTALLER:
+        assert _entity_id(hass, platform, key) is None, key
+
+
+async def test_installer_settings_failing_later_go_unavailable(
+    hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
+) -> None:
+    await _setup(hass, config_entry)
+    fake.envoy_errors["/ivp/ss/pel_settings"] = EnvoyConnectionError("timed out")
+    await config_entry.runtime_data.slow.async_refresh()
+    await hass.async_block_till_done()
+    assert config_entry.runtime_data.slow.last_update_success
+    state = hass.states.get(_entity_id(hass, "sensor", "export_limit_mode") or "")
+    assert state is not None and state.state == STATE_UNAVAILABLE
+    state = hass.states.get(_entity_id(hass, "sensor", "main_breaker_rating") or "")
+    assert state is not None and state.state == "200.0"
 
 
 async def test_cloud_outage_does_not_block_setup(

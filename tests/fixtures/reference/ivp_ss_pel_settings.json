@@ -1,0 +1,14 @@
+{
+  "PEL": true,
+  "Hard_PEL": false,
+  "Soft_PEL": true,
+  "Export_Limit_Type": "Aggregate",
+  "percent": false,
+  "apparent": false,
+  "PEL_Limit": 0.0,
+  "Comm_Time_Loss": 10000.0,
+  "Resp_Time_SoftPEL": 10000.0,
+  "Resp_Time_HardPEL": 0.0,
+  "msReset_HardPEL": 0.0,
+  "PEL_db": 0.0
+}

@@ -449,6 +449,67 @@ def parse_dry_contact_states(data: Any) -> dict[str, bool]:
         return {c["id"]: c["status"] == "closed" for c in data["dry_contacts"]}
 
 
+# --- Installer settings: export limit and PCS (read-only; never written) -------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ExportLimit:
+    """`/ivp/ss/pel_settings`, the power export limit. The unit of `limit` isn't confirmed:
+    `percent` true makes it a percentage, and the reference site's limit is 0."""
+
+    enabled: bool
+    soft: bool
+    hard: bool
+    limit: float | None
+    limit_type: str | None
+    percent: bool
+    apparent: bool
+
+    @property
+    def mode(self) -> str:
+        if not self.enabled:
+            return "off"
+        if self.soft and self.hard:
+            return "soft_and_hard"
+        return "hard" if self.hard else "soft" if self.soft else "on"
+
+    @classmethod
+    def from_payload(cls, data: Any) -> ExportLimit:
+        with _parsing("/ivp/ss/pel_settings"):
+            return cls(
+                enabled=bool(data["PEL"]),
+                soft=bool(data.get("Soft_PEL")),
+                hard=bool(data.get("Hard_PEL")),
+                limit=_number(data.get("PEL_Limit")),
+                limit_type=data.get("Export_Limit_Type"),
+                percent=bool(data.get("percent")),
+                apparent=bool(data.get("apparent")),
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class PcsSettings:
+    """`/ivp/ss/pcs_settings`, the power control system. Breaker ratings are in amps; 0 means
+    not set. `offerings` is each PCS feature the Envoy lists, and whether it's on."""
+
+    offerings: dict[str, bool]
+    main_breaker: float | None
+    main_busbar: float | None
+    der_breaker: float | None
+    consumption_meter_location: str | None
+
+    @classmethod
+    def from_payload(cls, data: Any) -> PcsSettings:
+        with _parsing("/ivp/ss/pcs_settings"):
+            return cls(
+                offerings={k: bool(v) for k, v in data["pcsOffering"].items()},
+                main_breaker=_number(data.get("mainCircuitBreaker")),
+                main_busbar=_number(data.get("mainPanelBusbar")),
+                der_breaker=_number(data.get("mainPanelDERBreaker")),
+                consumption_meter_location=data.get("consumptionMeterLocation"),
+            )
+
+
 # --- /api/v1/production/inverters (spec 5.5) ----------------------------------------------------
 
 

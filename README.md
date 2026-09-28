@@ -231,12 +231,28 @@ the switch. After a mode, action or level change, the Envoy may report the NC co
 for up to about a minute, although the relays haven't moved. Give automations that trigger on a
 contact's state a `for:` duration.
 
+## Installer settings
+
+Two groups of installer settings show as diagnostic entities on the Envoy device, read every
+60 s. They're read-only: the integration never writes installer settings.
+
+- **Export limit** (`/ivp/ss/pel_settings`): the export limit mode (off, soft, hard, or soft
+  and hard), the limit, and the limit type (such as Aggregate). The limit's unit isn't confirmed
+  yet, so none is shown; on the reference site it is 0, pending permission to operate.
+- **Power control system** (`/ivp/ss/pcs_settings`): the main breaker, main panel busbar and
+  DER breaker ratings in amps, where the consumption meter sits, and a binary sensor for each
+  PCS feature the Envoy lists, such as main panel upgrade avoidance. With main panel upgrade
+  avoidance on, the System Controller limits grid charging so the main breaker isn't
+  overloaded.
+
+Envoys that don't serve these endpoints simply don't get the entities.
+
 ## Known limitations
 
 - **Storage mode** (Self-Consumption, Full Backup and so on) is read-only. Change it in the
   Enphase app.
-- **Dry-contact controls** are untested on a live system, and don't change a contact's load
-  name, type, essential times or priority. Those are installer settings.
+- **Dry-contact controls** don't change a contact's load name, type, essential times or
+  priority. Those are installer settings.
 - **Energy today and last 7 days** aren't provided. Use the Energy dashboard, or a
   `utility_meter` on the lifetime sensors.
 - **Battery settings need the cloud.** The Envoy ignores local battery writes on current
