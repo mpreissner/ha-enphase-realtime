@@ -1,6 +1,6 @@
 # Dry-contact controls
 
-Status: implemented. The switch and the level writes were tested live on 28 September 2026 (see 7).
+Status: implemented. The switch, level and action writes were tested live on 28 September 2026 (see 7).
 
 ## 1. Goal
 
@@ -115,4 +115,8 @@ has written. It lays them over the Envoy's object for every later write, until:
     40 → 38 → 40, by clicking the number arrows. That sent 15+ settings POSTs, some 0.3 s
     apart. The Envoy took every one, and the final values read back were confirmed within
     4 s. The rapid clicks showed that back-to-back writes don't undo each other.
-  - **Not yet tested:** the mode and action selects. They use the same POST.
+  - **28 September 2026, actions:** NC1 and NC2 were set to grid Powered, generator Powered and
+    microgrid Not powered. All six writes were confirmed within 4 s. NC2's grid and generator
+    writes went 2.5 s apart and were both confirmed on the same re-read.
+  - **Not yet tested:** the mode select (the same POST). Also untested: whether a grid action
+    of Powered makes the System Controller override the switch while the grid is up.
