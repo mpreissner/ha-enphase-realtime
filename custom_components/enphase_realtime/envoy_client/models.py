@@ -41,6 +41,14 @@ def _timestamp(value: Any) -> datetime | None:
     return datetime.fromtimestamp(int(value), UTC)
 
 
+def _number(value: Any) -> Any:
+    """Inventory numbers, or None when the device reports something else. After an Envoy reboot
+    the battery reported `"unknown"` temperatures for a couple of minutes (docs/FINDINGS.md)."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return value
+
+
 # --- /info --------------------------------------------------------------------------------------
 
 
@@ -294,12 +302,14 @@ class SecCtrl:
 
 @dataclass(frozen=True, slots=True)
 class Schedule:
-    """`/ivp/sc/sched`. Its `acb_current_mode` isn't read: it keeps the last commanded mode
-    (e.g. Charge From Grid) after the battery has stopped (docs/FINDINGS.md)."""
+    """`/ivp/sc/sched`. `mode` is the scheduler's last commanded mode, not a live status: it
+    can read Charge From Grid after the battery has stopped, and it stays at Charge From PV
+    when the scheduler hasn't acted on charge from grid (docs/FINDINGS.md)."""
 
     charge_from_grid_allowed: bool
     reserve_energy: int | None
     battery_count: int | None
+    mode: str | None
 
     @classmethod
     def from_payload(cls, data: Any) -> Schedule:
@@ -308,7 +318,16 @@ class Schedule:
                 charge_from_grid_allowed=bool(data["Charge From Grid Allowed"]),
                 reserve_energy=data.get("Agg VLS Energy"),
                 battery_count=data.get("Num_of_enc"),
+                mode=_sched_mode(data.get("acb_current_mode"), data.get("sched_mode_key")),
             )
+
+
+def _sched_mode(index: Any, keys: Any) -> str | None:
+    """`acb_current_mode` indexes into `sched_mode_key`, e.g. "CG - Charge From Grid". Returns
+    the name without its code, or None when the index isn't in the list."""
+    if not isinstance(index, int) or not isinstance(keys, list) or not 0 <= index < len(keys):
+        return None
+    return str(keys[index]).split(" - ", 1)[-1]
 
 
 @dataclass(frozen=True, slots=True)
@@ -365,21 +384,21 @@ class Inventory:
                 batteries=[
                     Battery(
                         serial=d["serial_num"],
-                        soc=d.get("percentFull"),
-                        temperature=d.get("temperature"),
-                        max_cell_temperature=d.get("maxCellTemp"),
+                        soc=_number(d.get("percentFull")),
+                        temperature=_number(d.get("temperature")),
+                        max_cell_temperature=_number(d.get("maxCellTemp")),
                         communicating=bool(d.get("communicating")),
                         dc_switch_off=d.get("dc_switch_off"),
                         last_report=_timestamp(d.get("last_rpt_date")),
                         status=d.get("admin_state_str"),
-                        capacity=d.get("encharge_capacity"),
+                        capacity=_number(d.get("encharge_capacity")),
                     )
                     for d in devices.get("ENCHARGE", [])
                 ],
                 system_controllers=[
                     SystemController(
                         serial=d["serial_num"],
-                        temperature=d.get("temperature"),
+                        temperature=_number(d.get("temperature")),
                         communicating=bool(d.get("communicating")),
                         last_report=_timestamp(d.get("last_rpt_date")),
                     )

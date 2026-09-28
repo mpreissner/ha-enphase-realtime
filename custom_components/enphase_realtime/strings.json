@@ -82,6 +82,10 @@
     "phase_layout_changed": {
       "title": "Envoy phase layout changed",
       "description": "The Envoy's meters now report a {detected} layout, but this entry was set up as {stored}. Remove and re-add the integration so the per-phase entities match the new layout."
+    },
+    "maintenance_charge_stuck": {
+      "title": "Battery maintenance: the battery isn't charging",
+      "description": "Battery maintenance turned charge from grid on, but the battery (at {soc}%) hasn't charged for {minutes} minutes, and turning charge from grid off and on again didn't help. The Envoy's battery scheduler is probably stuck; its last mode was \"{mode}\". Changing the battery profile in the Enphase app, then changing it back to Full Backup, usually frees it. Battery maintenance won't retry until the battery charges again or you turn Battery maintenance off and on."
     }
   },
   "exceptions": {
@@ -99,6 +103,9 @@
     },
     "grid_control_blocked": {
       "message": "Enphase says the grid can't be switched right now ({reasons}), so the relay wasn't changed."
+    },
+    "maintenance_levels_invalid": {
+      "message": "The maintenance charge start level ({start}%) must be below the stop level ({stop}%)."
     }
   }
 }

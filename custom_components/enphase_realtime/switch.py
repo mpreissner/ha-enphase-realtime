@@ -1,36 +1,60 @@
-"""Charge-from-grid switch (spec 6.2) and the grid relay (spec 6.3)."""
+"""Charge-from-grid switch (spec 6.2), battery maintenance (docs/specs/battery-maintenance.md)
+and the grid relay (spec 6.3)."""
 
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
-from homeassistant.core import HomeAssistant
+from homeassistant.const import STATE_ON, EntityCategory
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import EnphaseConfigEntry
 from .confirm import RELAY_CONFIRM_TIMEOUT
 from .const import (
     CONF_ALLOW_GRID_RELAY,
-    CONF_COUNTRY,
     CONF_SITE_ID,
     DEFAULT_ALLOW_GRID_RELAY,
     DOMAIN,
+    FULL_BACKUP,
 )
-from .control import CloudControl, ConfirmingControl
-from .coordinator import CloudCoordinator, FastCoordinator, LiveCoordinator, LiveFeed
+from .control import (
+    CloudControl,
+    ConfirmingControl,
+    charge_from_grid_itc,
+    write_charge_from_grid,
+)
+from .coordinator import (
+    CloudCoordinator,
+    FastCoordinator,
+    FastData,
+    LiveCoordinator,
+    LiveFeed,
+)
 from .enlighten_client.battery import BatteryConfigClient
 from .enlighten_client.errors import EnlightenAuthError, EnlightenError
-from .enlighten_client.models import charge_from_grid_available
 from .enlighten_client.session import EnlightenSession
-from .entity import controller_or_envoy, envoy_device
+from .entity import EnphaseEntity, controller_or_envoy, envoy_device
 from .envoy_client.errors import EnvoyError
 from .envoy_client.models import Relay
+from .maintenance import (
+    STUCK_AFTER,
+    WRITE_BACKOFF,
+    Action,
+    Maintenance,
+    MaintenanceSettings,
+    Observation,
+    State,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -86,31 +110,205 @@ class ChargeFromGridSwitch(CloudControl[bool], SwitchEntity):
         return attrs or None
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        # Keep the begin and end times from the last GET; the app sends them with every "on".
-        settings = self._cloud.data
-        body: dict[str, Any] = {"chargeFromGrid": True, "chargeFromGridScheduleEnabled": False}
-        if settings is not None:
-            for key, value in (
-                ("chargeBeginTime", settings.charge_begin_time),
-                ("chargeEndTime", settings.charge_end_time),
-            ):
-                if value is not None:
-                    body[key] = value
-        if self._itc:
-            body["acceptedItcDisclaimer"] = True
-
-        async def write(battery: BatteryConfigClient) -> None:
-            if self._itc:
-                await battery.accept_disclaimer("itc")
-            await battery.update_battery_settings(body)
-
-        await self._async_write(True, write)
+        await self._async_set(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        async def write(battery: BatteryConfigClient) -> None:
-            await battery.update_battery_settings({"chargeFromGrid": False})
+        await self._async_set(False)
 
-        await self._async_write(False, write)
+    async def _async_set(self, on: bool) -> None:
+        async def write(battery: BatteryConfigClient) -> None:
+            await write_charge_from_grid(battery, on, self._cloud.data, itc_disclaimer=self._itc)
+
+        await self._async_write(on, write)
+
+
+MAINTENANCE = EnphaseSwitchDescription(
+    key="battery_maintenance",
+    name="Battery maintenance",
+    icon="mdi:battery-sync",
+    entity_category=EntityCategory.CONFIG,
+    # The switch is the integration's own setting, restored rather than read from the Envoy.
+    value_fn=lambda d: None,
+)
+
+
+class MaintenanceSwitch(EnphaseEntity[FastData], SwitchEntity, RestoreEntity):
+    """Turns charge from grid on at the start level and off at the stop level, in Full Backup
+    with no PV (docs/specs/battery-maintenance.md). It runs the state machine on every fast
+    poll and carries out its writes and repair issue."""
+
+    coordinator: FastCoordinator
+
+    def __init__(
+        self,
+        fast: FastCoordinator,
+        cloud: CloudCoordinator,
+        live: LiveCoordinator,
+        settings: MaintenanceSettings,
+        serial: str,
+        firmware: str,
+        *,
+        itc_disclaimer: bool,
+    ) -> None:
+        super().__init__(fast, MAINTENANCE, envoy_device(serial, firmware), serial)
+        self._cloud = cloud
+        self._live = live
+        self._settings = settings
+        self._itc = itc_disclaimer
+        self._machine = Maintenance(time.monotonic())
+        self._attr_is_on = False
+        self._issue_id = f"maintenance_charge_stuck_{cloud.config_entry.entry_id}"
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None:
+            self._attr_is_on = last.state == STATE_ON
+            owned = last.attributes.get("owned") is True
+            self._machine = Maintenance(time.monotonic(), owned=owned)
+        self.async_on_remove(self._delete_issue)
+        # The coordinators have data by now, so the status is right before the next poll.
+        self._tick()
+
+    @property
+    def available(self) -> bool:
+        """A setting of the integration's own, so it can be changed whatever the Envoy does."""
+        return True
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {"status": self._machine.state.value, "owned": self._machine.owned}
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        self._attr_is_on = True
+        self._tick()
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        self._attr_is_on = False
+        self._tick()
+        self.async_write_ha_state()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self._tick()
+        super()._handle_coordinator_update()
+
+    def _observe(self) -> Observation | None:
+        """None when the Envoy data isn't there to decide on (spec 4.1)."""
+        fast, live = self.coordinator.data, self._live.data
+        if (
+            fast is None
+            or live is None
+            or not self.coordinator.last_update_success
+            or not self._live.entities_available
+        ):
+            return None
+        settings = self._cloud.data if self._cloud.last_update_success else None
+        livedata = live.livedata
+        return Observation(
+            enabled=bool(self._attr_is_on),
+            start=self._settings.start,
+            stop=self._settings.stop,
+            full_backup=None if settings is None else settings.profile == FULL_BACKUP,
+            soc=fast.secctrl.soc,
+            allowed=fast.schedule.charge_from_grid_allowed,
+            battery_w=None if livedata.storage is None else livedata.storage.power,
+            pv_w=None if livedata.pv is None else livedata.pv.power,
+            on_grid=live.relay is None or live.relay.grid_connected,
+        )
+
+    @callback
+    def _tick(self) -> None:
+        obs = self._observe()
+        if obs is None:
+            return
+        before = self._machine.state
+        for action in self._machine.update(time.monotonic(), obs):
+            if action is Action.RAISE_ISSUE:
+                self._raise_issue(obs)
+            elif action is Action.CLEAR_ISSUE:
+                _LOGGER.info("%s: the battery is charging again", self.entity_id)
+                self._delete_issue()
+            else:
+                self.hass.async_create_task(self._async_write(action, obs))
+        if self._machine.state is not before:
+            _LOGGER.debug("%s: %s -> %s", self.entity_id, before.value, self._machine.state.value)
+
+    async def _async_write(self, action: Action, obs: Observation) -> None:
+        pending = self._machine.pending
+        on = action is Action.TURN_ON
+        if pending is not None and pending[1] is State.RETRYING:
+            _LOGGER.warning(
+                "%s: charge from grid is on but the battery (%s%%) hasn't charged for %d min; "
+                "turning it off and on again",
+                self.entity_id,
+                obs.soc,
+                STUCK_AFTER // 60,
+            )
+        else:
+            _LOGGER.info(
+                "%s: battery at %s%% (start %s%%, stop %s%%); turning charge from grid %s",
+                self.entity_id,
+                obs.soc,
+                obs.start,
+                obs.stop,
+                "on" if on else "off",
+            )
+        ok = False
+        try:
+            await write_charge_from_grid(
+                self._cloud.battery, on, self._cloud.data, itc_disclaimer=self._itc
+            )
+        except EnlightenAuthError:
+            self._cloud.config_entry.async_start_reauth(self.hass)
+            _LOGGER.warning(
+                "%s: Enphase rejected the login, so charge from grid wasn't turned %s",
+                self.entity_id,
+                "on" if on else "off",
+            )
+        except EnlightenError as err:
+            _LOGGER.warning(
+                "%s: couldn't turn charge from grid %s (%s); trying again in %d min",
+                self.entity_id,
+                "on" if on else "off",
+                err,
+                WRITE_BACKOFF // 60,
+            )
+        else:
+            ok = True
+        finally:
+            # Always settle the write, or an unexpected error would block maintenance for good.
+            self._machine.done(time.monotonic(), ok)
+            self.async_write_ha_state()
+        if ok:
+            await self._cloud.async_request_refresh()
+
+    def _raise_issue(self, obs: Observation) -> None:
+        mode = self.coordinator.data.schedule.mode if self.coordinator.data else None
+        _LOGGER.warning(
+            "%s: charge from grid is on but the battery (%s%%) still isn't charging after a "
+            "retry; see Repairs",
+            self.entity_id,
+            obs.soc,
+        )
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            self._issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="maintenance_charge_stuck",
+            translation_placeholders={
+                "soc": str(obs.soc),
+                "mode": mode or "unknown",
+                "minutes": str(int(STUCK_AFTER // 60)),
+            },
+        )
+
+    @callback
+    def _delete_issue(self) -> None:
+        ir.async_delete_issue(self.hass, DOMAIN, self._issue_id)
 
 
 def _relay(d: LiveFeed) -> Relay:
@@ -232,22 +430,26 @@ async def async_setup_entry(
     rt = entry.runtime_data
     if rt.cloud is None or rt.fast is None:
         return
-    site = rt.cloud.site
-    if site is None:
+    if rt.cloud.site is None:
         _LOGGER.info(
             "Enphase's site settings weren't available at setup, so it isn't known whether "
             "charging from the grid is allowed here; reload the integration to try again"
         )
         return
-    if not charge_from_grid_available(site, rt.cloud.data):
+    itc = charge_from_grid_itc(entry)
+    if itc is None:
         return
-    # The ITC disclaimer is the US Investment Tax Credit. The user's confirmed country wins over
-    # the registered one (spec 3.3).
-    country = entry.options.get(CONF_COUNTRY) or site.country_code
     async_add_entities(
         [
-            ChargeFromGridSwitch(
-                rt.fast, rt.cloud, rt.serial, rt.firmware, itc_disclaimer=country == "US"
-            )
+            ChargeFromGridSwitch(rt.fast, rt.cloud, rt.serial, rt.firmware, itc_disclaimer=itc),
+            MaintenanceSwitch(
+                rt.fast,
+                rt.cloud,
+                rt.live,
+                rt.maintenance,
+                rt.serial,
+                rt.firmware,
+                itc_disclaimer=itc,
+            ),
         ]
     )

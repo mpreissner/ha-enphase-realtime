@@ -88,7 +88,9 @@ and `<serial>_enphase_overhead_energy`.
 
 **When the value is computed.** On every live poll (default 1 s), from that poll's `load` and the
 backup-load sensor's current state. The backup-load sensor isn't polled: its latest state is
-used as it stands, because sensors such as SPAN's report only when the value changes.
+used as it stands, because sensors such as SPAN's report only when the value changes. How long
+it has held that value is measured from its `last_changed`, on the monotonic clock from the
+poll at which the integration first saw it, so a wall-clock step can't make it look stale.
 
 **Averaging.** The two meters are read at different moments and by different devices, so single
 samples wobble by tens of watts, the same size as the overhead itself. Each sample first passes
@@ -99,8 +101,8 @@ single mistimed step move the mean by tens of watts.
 **Units.** The backup-load sensor's value is converted from its `unit_of_measurement` (W, kW,
 MW, …) to W. A state that isn't a number, or a unit that isn't a power unit, counts as missing.
 
-**Missing data.** If the backup-load sensor is missing, unavailable or unreadable, or the live
-poll has no `load`, no sample is taken. The power entity is unavailable while its window is
+**Missing data.** If the backup-load sensor is missing, unavailable, unreadable or stale
+(section 6), or the live poll has no `load`, no sample is taken. The power entity is unavailable while its window is
 empty; the energy entity stays available and stops counting.
 
 The live coordinator notifies its listeners only when a poll's data differs from the last
@@ -176,17 +178,44 @@ all but an unusually long hourly job, which drops under a minute of energy. The 
 answers more slowly during a stall (median live poll 0.83 s against 0.35 s otherwise), and one
 poll timed out just before the stall at 15:11:50.
 
+**Stale backup load.** On 2026-09-26 SPAN's `main_feed_power` froze at 1182.181 W from 20:34:48.
+The SPAN integration kept re-reporting the frozen value for about 6 minutes, went unavailable
+from 20:45:46 to 20:50:09, came back with the same value for another 8 minutes, and at 20:58:46
+replayed an 11-minute backlog: dozens of old values within about 3 s, each stamped as new. It
+then ran behind until about 21:04, and updated only every 40–80 s until about 21:20. The
+filter's rebase took the error as a new level, and the overhead fell to −165 W.
+
+Normally the value changes every 1.0 s (median; 99th percentile 2.1 s, 99.9th 7.9 s). So a
+backup load unchanged for more than 30 s counts as missing. That alone isn't enough: a backlog
+replays values that change and look fresh, and a 10 s limit still left −148 W. So after any
+poll at which the backup load was missing or stale, samples stay skipped until 120 s have
+passed without another. Replayed over 15:04–08:10, 26–27 September, this lifts the mean from
+20:00 to 22:00 from −14.3 W to 8.5 W and the minimum from −164.8 W to −15.9 W; the night mean
+goes from 5.3 W to 7.9 W, and 4.9 % of polls are skipped. The remaining low points aren't SPAN's:
+the start of the run, a disagreement over a load mix at 15:35, and a 93 s Envoy stall at 23:09.
+A missing Envoy load doesn't start the settling; it is only a gap.
+
+The skipped polls are gaps, as for missing data. The sensor platform logs at debug level when
+the backup load goes stale or missing, and when samples resume.
+
+*Limitation:* a backup load that really holds one value for over 30 s, such as an idle subpanel
+reading exactly 0 W, pauses the overhead until 120 s after it next changes. A panel's main
+feed measured to the milliwatt doesn't do that.
+
 ## 7. Tests
 
 - Unit (`tests/test_overhead.py`): the window mean and expiry, unit conversion, the energy sum,
   gaps over 30 s, missing samples, and the outlier filter: seeding, rejection, a step reported
   as a ramp, accepting a lasting change only once steady, and the baseline surviving a gap; a
   repeated Envoy load is skipped, carries energy across a short stall but not a long one, and
-  isn't taken as a new level.
+  isn't taken as a new level; a stale or missing backup load is a gap, samples wait for it to
+  settle, a missing Envoy load doesn't start the settling, and a backup load changing within
+  the limit is used.
 - Home Assistant (`tests_ha/test_overhead.py`): the option adds the entities; the values follow
   the fixture's load and a stub backup-load state; the entity goes unavailable when the stub
   does; clearing the option removes the entities; the options form offers the selector; a held
-  livedata timestamp is logged.
+  livedata timestamp is logged; a backup load re-reported unchanged is skipped and logged, and
+  samples resume after the settling.
 
 ## 8. Later
 
