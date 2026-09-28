@@ -89,6 +89,11 @@ scheduler stuck is unknown; the Envoy had rebooted itself at about 03:06 that mo
 Charge from grid allowed, the battery below the reserve and the mode not CG is the sign of
 this state.
 
+**Non-numeric inventory values after a reboot (2026-09-28).** At 03:14 and 03:15, after the
+Envoy's 03:06 reboot, `/ivp/ensemble/inventory` reported the battery's `temperature` and
+`maxCellTemp` as the string `"unknown"`. The integration now treats any non-numeric inventory
+number as missing.
+
 **Self-Consumption discharge burst (2026-09-28).** On switching from Full Backup to
 Self-Consumption (reserve 30 %, battery 69 %, load about 1.1 kW, no PV), the battery
 discharged for about 10 s, rising to 3.86 kW (one IQ Battery 5P's maximum) and exporting up

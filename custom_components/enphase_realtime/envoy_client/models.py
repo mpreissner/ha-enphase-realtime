@@ -41,6 +41,14 @@ def _timestamp(value: Any) -> datetime | None:
     return datetime.fromtimestamp(int(value), UTC)
 
 
+def _number(value: Any) -> Any:
+    """Inventory numbers, or None when the device reports something else. After an Envoy reboot
+    the battery reported `"unknown"` temperatures for a couple of minutes (docs/FINDINGS.md)."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return value
+
+
 # --- /info --------------------------------------------------------------------------------------
 
 
@@ -376,21 +384,21 @@ class Inventory:
                 batteries=[
                     Battery(
                         serial=d["serial_num"],
-                        soc=d.get("percentFull"),
-                        temperature=d.get("temperature"),
-                        max_cell_temperature=d.get("maxCellTemp"),
+                        soc=_number(d.get("percentFull")),
+                        temperature=_number(d.get("temperature")),
+                        max_cell_temperature=_number(d.get("maxCellTemp")),
                         communicating=bool(d.get("communicating")),
                         dc_switch_off=d.get("dc_switch_off"),
                         last_report=_timestamp(d.get("last_rpt_date")),
                         status=d.get("admin_state_str"),
-                        capacity=d.get("encharge_capacity"),
+                        capacity=_number(d.get("encharge_capacity")),
                     )
                     for d in devices.get("ENCHARGE", [])
                 ],
                 system_controllers=[
                     SystemController(
                         serial=d["serial_num"],
-                        temperature=d.get("temperature"),
+                        temperature=_number(d.get("temperature")),
                         communicating=bool(d.get("communicating")),
                         last_report=_timestamp(d.get("last_rpt_date")),
                     )

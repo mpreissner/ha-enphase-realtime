@@ -283,6 +283,21 @@ def test_inventory() -> None:
     assert controller.communicating
 
 
+def test_inventory_unknown_values() -> None:
+    """After an Envoy reboot the battery reported "unknown" temperatures (FINDINGS)."""
+    data = load_json("ivp_ensemble_inventory.json")
+    for group in data:
+        for d in group.get("devices", []):
+            d.update(temperature="unknown", maxCellTemp="unknown", percentFull=None)
+    inv = Inventory.from_payload(data)
+    [battery] = inv.batteries
+    assert battery.temperature is None
+    assert battery.max_cell_temperature is None
+    assert battery.soc is None
+    [controller] = inv.system_controllers
+    assert controller.temperature is None
+
+
 def test_inventory_without_storage() -> None:
     inv = Inventory.from_payload([])
     assert inv.batteries == []
