@@ -400,6 +400,7 @@ aren't exposed in v1.
 | Aggregate SoC | F `secctrl.agg_soc` | `envoy_battery` |
 | Available energy, capacity | F `secctrl.ENC_agg_avail_energy`, `Max_energy` | `available_battery_energy`, `battery_capacity` |
 | Reserve energy | F `sc/sched['Agg VLS Energy']` | `reserve_battery_energy` |
+| Battery scheduler mode (diagnostic; last commanded mode, not a live status) | F `sc/sched` `sched_mode_key[acb_current_mode]`, code stripped | – (new) |
 | Battery shutdown level | F `secctrl.VLS_Limit` | – (new; the Enphase app's name) |
 | Reserve battery level (applied now) | F `secctrl.adjusted_backup_soc` | `reserve_battery_level` |
 | Configured reserve battery level | F `secctrl.configured_backup_soc` | `configured_reserve_battery_level` |
