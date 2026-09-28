@@ -1,6 +1,6 @@
 # Dry-contact controls
 
-Status: implemented, not yet tested live (see 7).
+Status: implemented. The switch was tested live on 28 September 2026 (see 7); the settings writes haven't been.
 
 ## 1. Goal
 
@@ -107,5 +107,8 @@ has written. It lays them over the Envoy's object for every later write, until:
   - failing after 30 s;
   - the level validation;
   - the Envoy refusing the write.
-- **Live:** only with the owner present and approving, after S6 (which contact switches
-  which load) is done. The contacts switch real loads on the reference system.
+- **Live:** only with the owner present and approving. The contacts switch real loads on the
+  reference system: NC1 the air conditioner, NC2 (believed) the dryer.
+  - **28 September 2026, switch:** NC1 opened at 14:33:14 and was confirmed at 14:33:17, and
+    the AC's ~50 W draw dropped to 0. It was closed at 14:33:28 and confirmed at 14:33:33.
+  - **Not yet tested:** the mode, action and level writes (the full-object settings POST).

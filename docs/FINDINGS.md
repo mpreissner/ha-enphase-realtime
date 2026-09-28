@@ -48,9 +48,10 @@ Slow endpoints to avoid polling: `production.json` (30–55 s), `inventory.json`
   Envoy's side. Treat the stream as detail for dashboards, not as a trigger that needs low
   latency.
 
-**Dry contacts: no live write without the user.** On the reference system they switch real loads
-(HVAC and dryer). The controls (specs/dry-contacts.md) are untested live until the S6 mapping is
-done and the user is present.
+**Dry contacts: no live write without the user.** On the reference system they switch real loads:
+NC1 is the air conditioner (confirmed 28 September 2026 by opening it from HA), and NC2 is believed to be
+the dryer. `POST /ivp/ensemble/dry_contacts` works with an owner token on D8.3.6086, and the new
+state shows on the next read, within about 3 s. The settings POST is still untested live.
 
 ## Local writes do not work (D8.3.6086)
 
