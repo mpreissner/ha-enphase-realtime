@@ -28,6 +28,7 @@ firmware D8.3.6086.
 |---|---|
 | Real-time power, energy, battery and System Controller sensors | Working on the reference site. The lifetime energy counters match the core integration's |
 | Charge from grid switch | Working. The cloud write and its local confirmation have been checked on the live system |
+| Battery maintenance | **New.** Tested against captured data. It hasn't yet run a charge on the live system. Off by default |
 | Battery shutdown level number | Working. The cloud write and its local confirmation have been checked on the live system |
 | Reserve battery level number | The cloud write is proven. Whether the Envoy reports the new value where the integration looks for it hasn't been checked yet, so confirmation may time out even when the change took effect |
 | Grid enabled switch | **Experimental.** Built and tested against captured data, but it has never switched a real relay. Off by default |
@@ -156,6 +157,31 @@ main monitors do. A large negative overhead usually means a CT is installed back
 Only equipment on the System Controller's side of the Envoy's CTs is included. If your IQ Gateway
 is powered from the combiner, ahead of the production CTs, its draw won't appear. On the
 reference site the overhead is about 8–9 W. See the [spec](docs/specs/enphase-overhead.md).
+
+## Battery maintenance
+
+In Full Backup the battery sits near full, but the system's own draw runs it down slowly, and
+with no PV nothing tops it up. Battery maintenance turns charge from grid on when the battery
+falls to a start level and off again at a stop level.
+
+- **Battery maintenance** (switch, off by default) turns it on. It only acts while the profile
+  is Full Backup and PV produces nothing (under 10 W for at least 2 minutes). When either
+  stops being true, it turns off charge from grid, but only if it turned it on itself.
+- **Maintenance charge start level** (default 90%) and **Maintenance charge stop level**
+  (default 100%) set the range. The start level must be below the stop level.
+- If you turn charge from grid on yourself below the start level, maintenance takes it over
+  and turns it off at the stop level. If you turn it off yourself, maintenance leaves it off
+  until the battery is back above the start level.
+- The switch's `status` attribute shows what it's doing: `inactive`, `idle`, `charging`,
+  `retrying`, `stuck` or `overridden`.
+
+The Envoy's battery scheduler can get stuck: charge from grid is on but the battery doesn't
+charge (the **Battery scheduler mode** sensor shows why). If the battery hasn't charged for
+10 minutes, maintenance turns charge from grid off and on again once. If that doesn't help,
+it raises a repair issue. Changing the battery profile in the Enphase app and back usually
+frees the scheduler. Maintenance never changes the profile itself.
+
+These entities only appear where the Charge from grid switch does.
 
 ## Grid relay
 

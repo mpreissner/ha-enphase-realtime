@@ -475,6 +475,9 @@ A failed write (anything other than 200, or an XSRF or auth error) raises
 | Battery shutdown level number | `PUT {"veryLowSoc":N}`; min and max from cloud `veryLowSocMin` / `veryLowSocMax` (5–25) | `secctrl.VLS_Limit == N` | **Yes**, confirmed within about 20 s |
 | Reserve battery level number (on the System Controller) | `PUT {"batteryBackupPercentage":N}`; min and max from the cloud | `secctrl.configured_backup_soc == N` | **Write path yes** (same PUT as the shutdown level); **local confirmation field not yet (S3)**. Built; the entity is unavailable when `profile == backup_only`, where the cloud pins it at 100 |
 
+Battery maintenance (docs/specs/battery-maintenance.md) writes the same charge-from-grid
+setting, using the same bodies, from a switch and two level numbers of its own.
+
 Charge-from-grid schedule (`chargeFromGridScheduleEnabled`, begin and end times): exposed as
 diagnostic attributes only in v1. Writing them comes later. The times are minutes after local
 midnight in the site's time zone (3.3).

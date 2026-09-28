@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.const import EntityCategory
 from homeassistant.core import CALLBACK_TYPE, callback
@@ -21,13 +21,56 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .confirm import CONFIRM_TIMEOUT, Confirmation, LocalConfirm
-from .const import DOMAIN
+from .const import CONF_COUNTRY, DOMAIN
 from .coordinator import CloudCoordinator, FastCoordinator, FastData
 from .enlighten_client.battery import BatteryConfigClient
 from .enlighten_client.errors import EnlightenAuthError, EnlightenError
+from .enlighten_client.models import BatterySettings, charge_from_grid_available
 from .entity import EnphaseEntity
 
+if TYPE_CHECKING:
+    from . import EnphaseConfigEntry
+
 _LOGGER = logging.getLogger(__name__)
+
+
+def charge_from_grid_itc(entry: EnphaseConfigEntry) -> bool | None:
+    """None where there is no charge-from-grid control; otherwise whether "on" needs the ITC
+    disclaimer (the US Investment Tax Credit). Battery maintenance exists where the switch
+    does."""
+    rt = entry.runtime_data
+    if rt.cloud is None or rt.fast is None or rt.cloud.site is None:
+        return None
+    if not charge_from_grid_available(rt.cloud.site, rt.cloud.data):
+        return None
+    # The user's confirmed country wins over the registered one (spec 3.3).
+    return (entry.options.get(CONF_COUNTRY) or rt.cloud.site.country_code) == "US"
+
+
+async def write_charge_from_grid(
+    battery: BatteryConfigClient,
+    on: bool,
+    settings: BatterySettings | None,
+    *,
+    itc_disclaimer: bool,
+) -> None:
+    """The Enphase app's write, shared by the switch and battery maintenance. "On" keeps the
+    begin and end times from the last GET, as the app sends them with every "on"."""
+    if not on:
+        await battery.update_battery_settings({"chargeFromGrid": False})
+        return
+    body: dict[str, Any] = {"chargeFromGrid": True, "chargeFromGridScheduleEnabled": False}
+    if settings is not None:
+        for key, value in (
+            ("chargeBeginTime", settings.charge_begin_time),
+            ("chargeEndTime", settings.charge_end_time),
+        ):
+            if value is not None:
+                body[key] = value
+    if itc_disclaimer:
+        body["acceptedItcDisclaimer"] = True
+        await battery.accept_disclaimer("itc")
+    await battery.update_battery_settings(body)
 
 
 class ConfirmingControl[DataT, T](EnphaseEntity[DataT]):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
@@ -46,6 +46,7 @@ from .enlighten_client.session import EnlightenSession
 from .entity import envoy_device
 from .envoy_client.local import EnvoyClient
 from .envoy_client.models import PhaseLayout
+from .maintenance import MaintenanceSettings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,6 +80,8 @@ class EnphaseData:
     # The token keeper rewrites entry.data, so the update listener reloads only when these
     # differ from the entry's current options.
     options: dict
+    # Battery maintenance's levels, shared by its numbers and its switch.
+    maintenance: MaintenanceSettings = field(default_factory=MaintenanceSettings)
 
 
 type EnphaseConfigEntry = ConfigEntry[EnphaseData]
