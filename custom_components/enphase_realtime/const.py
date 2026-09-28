@@ -25,6 +25,8 @@ CONF_COUNTRY = "country"
 CONF_TIME_ZONE = "time_zone"
 # Off by default: opening the relay by accident can't be undone remotely (spec 6.3).
 CONF_ALLOW_GRID_RELAY = "allow_grid_relay_control"
+# Off by default: the contacts switch real loads (docs/specs/dry-contacts.md 3).
+CONF_ALLOW_DRY_CONTACTS = "allow_dry_contact_control"
 # A power sensor on the backed-up panel's feed; set, it adds the overhead entities
 # (docs/specs/enphase-overhead.md).
 CONF_BACKUP_LOAD_ENTITY = "backup_load_entity"
@@ -37,6 +39,7 @@ DEFAULT_STREAM_INTERVAL = 0
 DEFAULT_CLOUD_INTERVAL = 300
 DEFAULT_ENABLE_STREAM = True
 DEFAULT_ALLOW_GRID_RELAY = False
+DEFAULT_ALLOW_DRY_CONTACTS = False
 
 SLOW_INTERVAL = timedelta(seconds=60)
 # Stream entities go unavailable after this long without a frame (spec 3.1).

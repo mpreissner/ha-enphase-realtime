@@ -48,7 +48,9 @@ Slow endpoints to avoid polling: `production.json` (30–55 s), `inventory.json`
   Envoy's side. Treat the stream as detail for dashboards, not as a trigger that needs low
   latency.
 
-**Dry contacts: never write.** On the reference system they switch real loads (HVAC and dryer).
+**Dry contacts: no live write without the user.** On the reference system they switch real loads
+(HVAC and dryer). The controls (specs/dry-contacts.md) are untested live until the S6 mapping is
+done and the user is present.
 
 ## Local writes do not work (D8.3.6086)
 

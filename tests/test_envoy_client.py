@@ -36,6 +36,8 @@ class FakeEnvoy:
         self.app.router.add_get("/info", self.info)
         self.app.router.add_get("/ivp/livedata/status", self.livedata)
         self.app.router.add_post("/ivp/livedata/stream", self.enable_stream)
+        self.app.router.add_post("/ivp/ensemble/dry_contacts", self.enable_stream)
+        self.app.router.add_post("/ivp/ss/dry_contact_settings", self.enable_stream)
         self.app.router.add_get("/ivp/meters/readings", self.garbage)
         self.app.router.add_get("/ivp/meters/reports", self.broken)
         self.app.router.add_get("/stream/meter", self.stream)
@@ -132,6 +134,21 @@ async def test_enable_livedata_stream_posts_and_renews(http: aiohttp.ClientSessi
     assert envoy.seen_tokens == ["stale", "fresh"]
     # A write's reply isn't a payload any entity reads.
     assert client.last_payloads == {}
+
+
+async def test_dry_contact_writes(http: aiohttp.ClientSession) -> None:
+    envoy = FakeEnvoy(valid="token")
+    settings = {"id": "NO1", "override": "false", "soc_low": 25.0}
+    async with serve(envoy.app) as url:
+        client = EnvoyClient(http, url, "token")
+        await client.set_dry_contact("NO1", True)
+        await client.set_dry_contact("NC2", False)
+        await client.set_dry_contact_settings(settings)
+    assert envoy.posted == [
+        {"dry_contacts": {"id": "NO1", "status": "closed"}},
+        {"dry_contacts": {"id": "NC2", "status": "open"}},
+        {"dry_contacts": settings},
+    ]
 
 
 async def test_401_after_renewal_is_an_auth_error(http: aiohttp.ClientSession) -> None:

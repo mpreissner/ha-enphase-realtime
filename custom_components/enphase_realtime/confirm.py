@@ -15,6 +15,8 @@ from enum import StrEnum
 CONFIRM_TIMEOUT = timedelta(seconds=90)
 # The grid relay is local, so it has no cloud lag to wait out (spec 6.3).
 RELAY_CONFIRM_TIMEOUT = timedelta(seconds=30)
+# Dry contacts are local too (docs/specs/dry-contacts.md 5).
+DRY_CONTACT_CONFIRM_TIMEOUT = RELAY_CONFIRM_TIMEOUT
 
 
 class Confirmation(StrEnum):

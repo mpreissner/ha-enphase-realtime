@@ -12,7 +12,7 @@ import re
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -420,6 +420,9 @@ class DryContactSettings:
     gen_action: str | None
     soc_low: float | None
     soc_high: float | None
+    # The contact's object as the Envoy sent it: a settings write sends it back whole, with only
+    # the changed fields replaced (docs/specs/dry-contacts.md 2).
+    raw: dict[str, Any] = field(default_factory=dict, compare=False, hash=False, repr=False)
 
     @classmethod
     def parse_dict(cls, data: Any) -> dict[str, DryContactSettings]:
@@ -434,6 +437,7 @@ class DryContactSettings:
                     gen_action=c.get("gen_action"),
                     soc_low=c.get("soc_low"),
                     soc_high=c.get("soc_high"),
+                    raw=dict(c),
                 )
                 for c in data["dry_contacts"]
             }

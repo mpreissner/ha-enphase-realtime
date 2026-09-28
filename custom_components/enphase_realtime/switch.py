@@ -1,5 +1,5 @@
-"""Charge-from-grid switch (spec 6.2), battery maintenance (docs/specs/battery-maintenance.md)
-and the grid relay (spec 6.3)."""
+"""Charge-from-grid switch (spec 6.2), battery maintenance (docs/specs/battery-maintenance.md),
+the grid relay (spec 6.3) and the dry contacts (docs/specs/dry-contacts.md)."""
 
 from __future__ import annotations
 
@@ -39,7 +39,9 @@ from .coordinator import (
     FastData,
     LiveCoordinator,
     LiveFeed,
+    SlowCoordinator,
 )
+from .dry_contact import DryContactControl, contact_label, contacts_device, dry_contact_controls
 from .enlighten_client.battery import BatteryConfigClient
 from .enlighten_client.errors import EnlightenAuthError, EnlightenError
 from .enlighten_client.session import EnlightenSession
@@ -418,6 +420,38 @@ def _grid_relay(entry: EnphaseConfigEntry) -> GridRelaySwitch | None:
     return GridRelaySwitch(rt.live, rt.enlighten, entry.data[CONF_SITE_ID], device, rt.serial)
 
 
+class DryContactSwitch(DryContactControl[bool], SwitchEntity):
+    """On: the contact's relay is closed (the core integration's `relay_status`)."""
+
+    @property
+    def is_on(self) -> bool | None:
+        return self._shown()
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._async_set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._async_set(False)
+
+    async def _async_set(self, closed: bool) -> None:
+        async def write() -> None:
+            await self.coordinator.client.set_dry_contact(self._contact_id, closed)
+
+        await self._async_write(closed, write)
+
+
+def _dry_contact_switch(
+    slow: SlowCoordinator, contact_id: str, device: DeviceInfo, serial: str
+) -> DryContactSwitch:
+    description = EnphaseSwitchDescription(
+        key=f"dry_contact_{contact_id}",
+        name=contact_label(slow.data, contact_id),
+        icon="mdi:electric-switch",
+        value_fn=lambda d: d.dry_contact_states[contact_id],
+    )
+    return DryContactSwitch(slow, description, device, serial, contact_id)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
@@ -428,6 +462,10 @@ async def async_setup_entry(
         async_add_entities([relay])
 
     rt = entry.runtime_data
+    if contacts := dry_contact_controls(entry):
+        device = contacts_device(entry)
+        async_add_entities([_dry_contact_switch(rt.slow, c, device, rt.serial) for c in contacts])
+
     if rt.cloud is None or rt.fast is None:
         return
     if rt.cloud.site is None:

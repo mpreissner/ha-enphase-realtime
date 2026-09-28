@@ -175,6 +175,18 @@ class EnvoyClient:
     async def dry_contact_states(self) -> dict[str, bool]:
         return parse_dry_contact_states(await self.get_json("/ivp/ensemble/dry_contacts"))
 
+    async def set_dry_contact(self, contact_id: str, closed: bool) -> None:
+        """Close or open one dry contact. The reply isn't used (docs/specs/dry-contacts.md)."""
+        status = "closed" if closed else "open"
+        await self.post_json(
+            "/ivp/ensemble/dry_contacts", {"dry_contacts": {"id": contact_id, "status": status}}
+        )
+
+    async def set_dry_contact_settings(self, settings: dict[str, Any]) -> None:
+        """Write one contact's settings. `settings` must be the contact's full object: a partial
+        one may crash the Envoy."""
+        await self.post_json("/ivp/ss/dry_contact_settings", {"dry_contacts": settings})
+
     async def inverters(self) -> list[Inverter]:
         return Inverter.parse_list(await self.get_json("/api/v1/production/inverters"))
 

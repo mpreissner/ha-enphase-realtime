@@ -17,8 +17,8 @@ Battery site with one integration that:
    is long enough for an IQ Battery to overload and trip. This matches what
    `enphase-envoy-mqtt-json` delivers today (it polls `livedata` about every 0.6 s plus the
    request time).
-2. **Controls locally what the Envoy accepts locally.** That covers the grid relay, and later
-   the dry contacts.
+2. **Controls locally what the Envoy accepts locally.** That covers the grid relay and the
+   dry contacts.
 3. **Controls through the Enlighten cloud what the Envoy ignores locally.** That covers the
    battery settings. Every cloud write is then **confirmed from local values**.
 
@@ -36,9 +36,6 @@ such.
 
 - **Changing the storage mode or profile** (Self-Consumption, Full Backup, and so on). The
   write endpoint hasn't been captured. The integration reads the mode but can't set it.
-- **Writing to dry contacts.** On the reference site they switch HVAC and dryer loads, and
-  nobody knows which contact is which. They are read-only until the user maps them.
-  Sections 5 and 10 cover this.
 - Configuring generators.
 - Supporting the legacy Envoy-S (firmware below 7) or envoys without an owner-token flow.
 - Getting the brand into home-assistant/brands.
@@ -433,7 +430,7 @@ nothing is pending, and it isn't a parse error.
 For each micro: last-report watts and last-report time, from L `/api/v1/production/inverters`.
 Parity with the core `inverter_*` entities. Disabled by default.
 
-### 5.6 Dry contacts (read-only in v1)
+### 5.6 Dry contacts
 
 For each contact:
 
@@ -441,9 +438,9 @@ For each contact:
 - diagnostic sensors for `mode`, `grid_action`, `micro_grid_action`, `gen_action`, `soc_low`
   and `soc_high` (from `ss/dry_contact_settings`)
 
-These replace the core's `relay_*_status` switches and the `*_action`, `mode`,
-`cutoff_battery_level` and `restore_battery_level` controls. **They are deliberately not
-writable** (see 1).
+With the option **Allow dry-contact control** (off by default), each contact also gets the
+core's controls: a switch for the relay, selects for `mode` and the three actions, and numbers
+for the cutoff and restore levels. The design is in [dry-contacts.md](dry-contacts.md).
 
 ## 6. Control
 
@@ -591,7 +588,7 @@ Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`. Status
 | S3 | Does `batteryBackupPercentage` show locally as `secctrl.configured_backup_soc`? (The PUT itself is proven by the shutdown-level test.) | One change in Self-Consumption, e.g. 30 → 32 and back, with the user watching. If confirmation fails but the change took effect, the confirm field is wrong |
 | S4 | Does `POST /ivp/ensemble/relay` work with an owner token on D8.3.6086? | Only with the user present, battery SoC above 50%, and an immediate restore |
 | S5 | Do `/ivp/meters/readings` and `reports` lifetime counters match the core's lifetime values, and are they monotonic? Which storage field is charged and which discharged? (Reference site: `actEnergyDlvd` 626 Wh, `actEnergyRcvd` 13,560 Wh, on a new battery that spent the test day charging from grid, which suggests `Rcvd` = charged) | **Settled (25 September 2026):** all six lifetime counters match the core integration's on the reference site (production 742.84 kWh, consumption 1,530.2, import 1,158.6, export 371.25, battery charged 15.39, discharged 0.63). `actEnergyRcvd` is charged, as core has it. Production + import − export equals consumption exactly, and the counters only rose between restarts |
-| S6 | Dry-contact mapping (which contact switches the AC, which the dryer) | User task. Writes stay out of scope until it's done |
+| S6 | Dry-contact mapping (which contact switches the AC, which the dryer) | User task. The controls are built (dry-contacts.md), but no live write until it's done, with the user present |
 | S7 | Is it worth adding the `mqttSignedUrl` AWS IoT stream as a push source for cloud state (to replace the 300 s poll)? | Revisit after phase 3 |
 | S8 | Outside the US: do the same Enlighten and Entrez hosts work, which charge-from-grid disclaimer type (if any) is needed, and what do `showChargeFromGrid` and `restrictCfg` look like? | Needs a non-US tester. Until then, the conservative gating in 3.3 applies |
 | S9 | What do single-phase and three-phase sites send for `phaseMode`, `phase_count`, `is_split_phase`, stream frames and `livedata` per-phase fields? What temperature unit do other System Controller models report? | Diagnostics dumps from users (3.3). Add each as a fixture under `tests/fixtures/<layout>/` |
