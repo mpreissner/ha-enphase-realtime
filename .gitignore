@@ -23,3 +23,9 @@ samples/
 .enphase_realtime/
 
 .claude/
+
+# Home Assistant diagnostics downloads carry real site data. Drop them in diagnostics/.
+diagnostics/
+config_entry-*.json
+
+.DS_Store
