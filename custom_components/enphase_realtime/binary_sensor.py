@@ -101,6 +101,30 @@ def _contact(contact_id: str, label: str) -> EnphaseBinarySensorDescription:
     )
 
 
+# The Envoy's PCS offering names; one it adds later shows under its own name.
+_PCS_OFFERINGS = {
+    "PVOversubscription": "PV oversubscription",
+    "EnchargeOversubscription": "Battery oversubscription",
+    "EVSEMBTAvoidance": "EV charger main breaker trip avoidance",
+    "MPUAvoidance": "Main panel upgrade avoidance",
+    "BusbarPCS": "Busbar PCS",
+}
+
+
+def _pcs_offering(offering: str) -> EnphaseBinarySensorDescription:
+    def value(d: SlowData) -> bool:
+        if d.pcs is None:
+            raise KeyError("PCS settings")
+        return d.pcs.offerings[offering]
+
+    return EnphaseBinarySensorDescription(
+        key=f"pcs_{offering.lower()}",
+        name=f"PCS {_PCS_OFFERINGS.get(offering, offering)}",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=value,
+    )
+
+
 _CLOUD = (
     EnphaseBinarySensorDescription(
         key="pending_cloud_change",
@@ -161,6 +185,12 @@ async def async_setup_entry(
                 EnphaseBinarySensor(rt.slow, d, contacts_device, controller.serial)
                 for d in _controller(controller.serial)
             ]
+    if slow.pcs is not None:
+        entities += [
+            EnphaseBinarySensor(rt.slow, _pcs_offering(o), envoy, rt.serial)
+            for o in slow.pcs.offerings
+        ]
+
     for contact_id in slow.dry_contact_states:
         settings = slow.dry_contact_settings.get(contact_id)
         label = settings.load_name if settings and settings.load_name else contact_id

@@ -39,6 +39,8 @@ before committing.
 | `ivp_ensemble_relay.json` | `GET /ivp/ensemble/relay` | |
 | `ivp_ensemble_dry_contacts.json` | `GET /ivp/ensemble/dry_contacts` | |
 | `ivp_ss_dry_contact_settings.json` | `GET /ivp/ss/dry_contact_settings` | |
+| `ivp_ss_pel_settings.json` | `GET /ivp/ss/pel_settings` | copied from a probe's output: it holds no identifiers, and there's no raw capture for the sanitizer |
+| `ivp_ss_pcs_settings.json` | `GET /ivp/ss/pcs_settings` | as above. `/ivp/ss/pcs_config` answers 404 |
 | `ivp_sc_sched.json` | `GET /ivp/sc/sched` | |
 | `ivp_sc_status.json` | `GET /ivp/sc/status` | normal operation |
 | `ivp_sc_status_cg.json` | `GET /ivp/sc/status` | captured in mode 2, charging from grid |

@@ -15,10 +15,12 @@ from .errors import EnvoyAuthError, EnvoyConnectionError, EnvoyParseError, Envoy
 from .models import (
     DryContactSettings,
     EnvoyInfo,
+    ExportLimit,
     Inventory,
     Inverter,
     LiveData,
     Meter,
+    PcsSettings,
     Relay,
     Schedule,
     SecCtrl,
@@ -186,6 +188,12 @@ class EnvoyClient:
         """Write one contact's settings. `settings` must be the contact's full object: a partial
         one may crash the Envoy."""
         await self.post_json("/ivp/ss/dry_contact_settings", {"dry_contacts": settings})
+
+    async def export_limit(self) -> ExportLimit:
+        return ExportLimit.from_payload(await self.get_json("/ivp/ss/pel_settings"))
+
+    async def pcs_settings(self) -> PcsSettings:
+        return PcsSettings.from_payload(await self.get_json("/ivp/ss/pcs_settings"))
 
     async def inverters(self) -> list[Inverter]:
         return Inverter.parse_list(await self.get_json("/api/v1/production/inverters"))
