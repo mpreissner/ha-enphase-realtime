@@ -53,6 +53,8 @@ NC1 is the air conditioner (confirmed 28 September 2026 by opening it from HA), 
 the dryer. `POST /ivp/ensemble/dry_contacts` works with an owner token on D8.3.6086, and the new
 state shows on the next read, within about 3 s. `POST /ivp/ss/dry_contact_settings` with the
 contact's full object also works, and so do POSTs 0.3 s apart. The levels read back within 4 s.
+After any settings POST, `ensemble/dry_contacts` reports every NC contact as `open` for 5–90 s,
+not just the one written. The relays don't actually open: the AC kept drawing power throughout.
 
 ## Local writes do not work (D8.3.6086)
 

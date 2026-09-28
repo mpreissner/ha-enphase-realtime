@@ -92,6 +92,8 @@ has written. It lays them over the Envoy's object for every later write, until:
 
 - **Other fields.** It doesn't write `load_name`, `type`, `override`, the essential times or
   the priority. These are installer fields, and the core integration doesn't write them either.
+- **Status after a settings write.** It doesn't correct the Envoy's brief `open` reports after
+  a settings write (see 7).
 - **Mode conflicts.** It doesn't keep the switch from fighting the mode. In `battery` mode, the
   System Controller opens and closes the contact itself at the cutoff and restore levels, so a
   manual switch may be undone. The entity shows what the Envoy reports.
@@ -118,5 +120,15 @@ has written. It lays them over the Envoy's object for every later write, until:
   - **28 September 2026, actions:** NC1 and NC2 were set to grid Powered, generator Powered and
     microgrid Not powered. All six writes were confirmed within 4 s. NC2's grid and generator
     writes went 2.5 s apart and were both confirmed on the same re-read.
+  - **28 September 2026, NC2 switch:** opened at 14:50:03 and was confirmed at 14:50:07;
+    closed at 14:50:46 and confirmed at 14:50:50. Its grid action was Powered at the time,
+    and the System Controller didn't override the switch.
+  - **Status reported wrongly after a settings write:** after each settings POST,
+    `ensemble/dry_contacts` reported NC1 and NC2 as `open`, including the contact that
+    wasn't written. This lasted 5–90 s, then they read `closed` again. The owner watched
+    the AC's draw through the longest of these (14:36–14:37), and it never dropped, so the
+    relays didn't actually open. The integration shows what the Envoy reports and doesn't
+    hide it, because hiding it would also hide a real change. Automations that trigger on a
+    contact's state should use a `for:` duration.
   - **Not yet tested:** the mode select (the same POST). Also untested: whether a grid action
     of Powered makes the System Controller override the switch while the grid is up.

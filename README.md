@@ -227,7 +227,9 @@ manual switch.
 
 Everything but the mode select has been tried on a live system (see [Status](#status)). If an
 action for the current grid state is Powered or Not powered, the System Controller may override
-the switch.
+the switch. After a mode, action or level change, the Envoy may report the NC contacts as open
+for up to about a minute, although the relays haven't moved. Give automations that trigger on a
+contact's state a `for:` duration.
 
 ## Known limitations
 
