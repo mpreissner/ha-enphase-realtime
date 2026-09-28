@@ -51,7 +51,8 @@ Slow endpoints to avoid polling: `production.json` (30–55 s), `inventory.json`
 **Dry contacts: no live write without the user.** On the reference system they switch real loads:
 NC1 is the air conditioner (confirmed 28 September 2026 by opening it from HA), and NC2 is believed to be
 the dryer. `POST /ivp/ensemble/dry_contacts` works with an owner token on D8.3.6086, and the new
-state shows on the next read, within about 3 s. The settings POST is still untested live.
+state shows on the next read, within about 3 s. `POST /ivp/ss/dry_contact_settings` with the
+contact's full object also works, and so do POSTs 0.3 s apart. The levels read back within 4 s.
 
 ## Local writes do not work (D8.3.6086)
 

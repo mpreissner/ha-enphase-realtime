@@ -33,7 +33,7 @@ firmware D8.3.6086.
 | Battery shutdown level number | Working. The cloud write and its local confirmation have been checked on the live system |
 | Reserve battery level number | The cloud write is proven. Whether the Envoy reports the new value where the integration looks for it hasn't been checked yet, so confirmation may time out even when the change took effect |
 | Grid enabled switch | **Experimental.** Built and tested against captured data, but it has never switched a real relay. Off by default |
-| Dry-contact controls | **Experimental.** The switch has opened and closed a real contact, with confirmation. The mode, action and level writes haven't been tried live. Off by default |
+| Dry-contact controls | **Experimental.** The switch and the battery-level numbers have been checked on the live system. The mode and action selects use the same write but haven't been tried. Off by default |
 | Microinverter sensors | Built. Not checked against a producing array |
 | 1 s polling over a full day | Not yet measured. If your Envoy starts timing out, raise the live poll interval |
 | Single-phase and three-phase sites, non-US sites | Supported by design, untested. Diagnostics from these sites are very welcome |
@@ -225,7 +225,7 @@ stay either way. Like the grid relay, each control shows the requested value wit
 In Battery level mode the System Controller switches the contact itself, so it may undo a
 manual switch.
 
-The switch has been tried on a live system; the mode, action and level writes haven't (see [Status](#status)).
+The switch and the battery levels have been tried on a live system. The mode and action selects haven't (see [Status](#status)).
 
 ## Known limitations
 

@@ -1,6 +1,6 @@
 # Dry-contact controls
 
-Status: implemented. The switch was tested live on 28 September 2026 (see 7); the settings writes haven't been.
+Status: implemented. The switch and the level writes were tested live on 28 September 2026 (see 7).
 
 ## 1. Goal
 
@@ -111,4 +111,8 @@ has written. It lays them over the Envoy's object for every later write, until:
   reference system: NC1 the air conditioner, NC2 (believed) the dryer.
   - **28 September 2026, switch:** NC1 opened at 14:33:14 and was confirmed at 14:33:17, and
     the AC's ~50 W draw dropped to 0. It was closed at 14:33:28 and confirmed at 14:33:33.
-  - **Not yet tested:** the mode, action and level writes (the full-object settings POST).
+  - **28 September 2026, levels:** NC1's cutoff went 30 → 25 → 30 and its restore level
+    40 → 38 → 40, by clicking the number arrows. That sent 15+ settings POSTs, some 0.3 s
+    apart. The Envoy took every one, and the final values read back were confirmed within
+    4 s. The rapid clicks showed that back-to-back writes don't undo each other.
+  - **Not yet tested:** the mode and action selects. They use the same POST.
