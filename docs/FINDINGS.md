@@ -71,6 +71,17 @@ off (duration 0, mode CP). Cloud changes to charge from grid did not rewrite the
 (`storage_settings.date` unchanged), and `/ivp/sc/sched` `acb_current_mode` kept reading CG
 through them while the battery charged and stopped as told.
 
+Checked again on 2026-09-28, after the Envoy restarted by itself at about 03:06: the file matches
+the 2026-09-24 original exactly, `storage_settings.charge_from_grid` true included.
+
+**Charge from grid allowed but not charging (2026-09-28).** After that restart, charge from grid
+turned on (from the integration and from the Enphase app) was accepted by the cloud and shown
+locally as `"Charge From Grid Allowed": true`, but `acb_current_mode` stayed at CP and storage
+at 0 W, with the site in Full Backup, `configured_backup_soc` 100 and the battery at 69 %,
+`ENCHG_STATE_READY`. The tariff file wasn't the cause (above). Cause not yet known; raised with
+the installer. `Charge From Grid Allowed` therefore confirms the setting, not that the battery
+is charging.
+
 ## Enlighten cloud battery API (write)
 
 Base `https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1`.
