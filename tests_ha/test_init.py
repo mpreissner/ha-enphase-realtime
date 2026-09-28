@@ -100,6 +100,7 @@ async def test_entity_ids_match_the_core_integration(
         f"sensor.{envoy}_available_battery_energy",
         f"sensor.{envoy}_battery_capacity",
         f"sensor.{envoy}_reserve_battery_energy",
+        f"sensor.{envoy}_battery_scheduler_mode",
         f"sensor.{envoy}_reserve_battery_level",
         f"sensor.{envoy}_voltage_net_consumption_ct_l1",
         f"sensor.{envoy}_frequency_net_consumption_ct",

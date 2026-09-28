@@ -283,6 +283,14 @@ def _fast_sensors() -> list[EnphaseSensorDescription]:
         energy(
             "reserve_battery_energy", "Reserve battery energy", lambda d: d.schedule.reserve_energy
         ),
+        # Last commanded mode, not a live status (FINDINGS): shows when the scheduler hasn't
+        # acted on charge from grid.
+        EnphaseSensorDescription(
+            key="battery_scheduler_mode",
+            name="Battery scheduler mode",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            value_fn=lambda d: d.schedule.mode,
+        ),
         # The Enphase app's name; the core integration doesn't have it.
         percent(
             "battery_shutdown_level", "Battery shutdown level", lambda d: d.secctrl.very_low_soc

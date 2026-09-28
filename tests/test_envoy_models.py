@@ -232,6 +232,23 @@ def test_schedule_reference() -> None:
     assert sched.charge_from_grid_allowed is True
     assert sched.reserve_energy == 500
     assert sched.battery_count == 1
+    assert sched.mode == "Charge From PV"
+
+
+@pytest.mark.parametrize(
+    ("index", "mode"),
+    [(2, "Charge From Grid"), (10, "HEMS Charge from Grid"), (11, None), (-1, None), (None, None)],
+)
+def test_schedule_mode(index: int | None, mode: str | None) -> None:
+    data = load_json("ivp_sc_sched.json")
+    data["acb_current_mode"] = index
+    assert Schedule.from_payload(data).mode == mode
+
+
+def test_schedule_mode_without_keys() -> None:
+    data = load_json("ivp_sc_sched.json")
+    del data["sched_mode_key"]
+    assert Schedule.from_payload(data).mode is None
 
 
 @pytest.mark.parametrize(

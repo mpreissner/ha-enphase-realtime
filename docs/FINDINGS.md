@@ -20,7 +20,7 @@ Base `https://<envoy>/`, header `Authorization: Bearer <owner JWT>`, self-signed
 | What | Endpoint | Field |
 |---|---|---|
 | Charge-from-grid in effect | `/ivp/sc/sched` | `"Charge From Grid Allowed"` (bool) |
-| Controller mode | `/ivp/sc/sched` | `acb_current_mode`, an index into `sched_mode_key` (2 = CG, 6 = CP). Not a live status: on 2026-09-25 it still read CG a day after charge from grid was turned off, with the battery at 0 W. Not exposed. |
+| Controller mode | `/ivp/sc/sched` | `acb_current_mode`, an index into `sched_mode_key` (2 = CG, 6 = CP). Not a live status: on 2026-09-25 it still read CG a day after charge from grid was turned off, with the battery at 0 W. Exposed as the diagnostic "Battery scheduler mode" because it shows when the scheduler hasn't acted on charge from grid (2026-09-28, below). |
 | Commanded setpoint | `/ivp/sc/status` | `response.groups[ENC].setpoint_val` (-100 = full charge, 0 = idle); `acbstats.encharge_feedback.raw_setpt` |
 | Reserve (very-low SoC) | `/ivp/ensemble/secctrl` | `VLS_Limit` (%) = cloud `veryLowSoc` |
 | Backup SoC target | `/ivp/ensemble/secctrl` | `configured_backup_soc`, `adjusted_backup_soc` |
@@ -78,9 +78,22 @@ the 2026-09-24 original exactly, `storage_settings.charge_from_grid` true includ
 turned on (from the integration and from the Enphase app) was accepted by the cloud and shown
 locally as `"Charge From Grid Allowed": true`, but `acb_current_mode` stayed at CP and storage
 at 0 W, with the site in Full Backup, `configured_backup_soc` 100 and the battery at 69 %,
-`ENCHG_STATE_READY`. The tariff file wasn't the cause (above). Cause not yet known.
-`Charge From Grid Allowed` therefore confirms the setting, not that the battery
-is charging.
+`ENCHG_STATE_READY`. The tariff file wasn't the cause (above). The Envoy had accepted the
+setting, but its scheduler hadn't acted on it. Changing the profile to Self-Consumption,
+turning charge from grid on there ("anytime below reserve") and switching back to Full Backup
+made the scheduler re-evaluate: `acb_current_mode` went to CG and the battery charged at about
+3.8 kW, and kept charging in Full Backup. Full Backup isn't the problem: the first charge from
+grid on this system, before the repo existed, was done entirely in Full Backup. Why the
+scheduler stuck is unknown; the Envoy had rebooted itself at about 03:06 that morning.
+`Charge From Grid Allowed` therefore confirms the setting, not that the battery is charging.
+Charge from grid allowed, the battery below the reserve and the mode not CG is the sign of
+this state.
+
+**Self-Consumption discharge burst (2026-09-28).** On switching from Full Backup to
+Self-Consumption (reserve 30 %, battery 69 %, load about 1.1 kW, no PV), the battery
+discharged for about 10 s, rising to 3.86 kW (one IQ Battery 5P's maximum) and exporting up
+to 2.7 kW, then went to 0 W and stayed there. This was before charge from grid was turned on
+in Self-Consumption (above). Not seen again yet.
 
 ## Enlighten cloud battery API (write)
 
