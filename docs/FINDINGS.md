@@ -78,8 +78,8 @@ the 2026-09-24 original exactly, `storage_settings.charge_from_grid` true includ
 turned on (from the integration and from the Enphase app) was accepted by the cloud and shown
 locally as `"Charge From Grid Allowed": true`, but `acb_current_mode` stayed at CP and storage
 at 0 W, with the site in Full Backup, `configured_backup_soc` 100 and the battery at 69 %,
-`ENCHG_STATE_READY`. The tariff file wasn't the cause (above). Cause not yet known; raised with
-the installer. `Charge From Grid Allowed` therefore confirms the setting, not that the battery
+`ENCHG_STATE_READY`. The tariff file wasn't the cause (above). Cause not yet known.
+`Charge From Grid Allowed` therefore confirms the setting, not that the battery
 is charging.
 
 ## Enlighten cloud battery API (write)
