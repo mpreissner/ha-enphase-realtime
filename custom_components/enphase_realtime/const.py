@@ -69,3 +69,6 @@ ENPOWER_TEMPERATURE_UNIT = UnitOfTemperature.FAHRENHEIT
 
 # Entity names use the installer's terms; unique IDs keep the Envoy's keys (spec 3.3).
 PHASE_NAMES = {"ph-a": "L1", "ph-b": "L2", "ph-c": "L3"}
+
+# The cloud's profile name for Full Backup, where the reserve is fixed at 100%.
+FULL_BACKUP = "backup_only"
