@@ -84,9 +84,11 @@ def test_new_write_restarts_the_clock() -> None:
     assert confirm.check(20, T0 + timedelta(seconds=110)) is Confirmation.CONFIRMED
 
 
-def test_relay_uses_its_own_30_second_timeout() -> None:
+def test_relay_waits_90_seconds() -> None:
     confirm: LocalConfirm[bool] = LocalConfirm(timeout=RELAY_CONFIRM_TIMEOUT)
     confirm.start(False, T0)
-    assert confirm.check(True, T0 + timedelta(seconds=29)) is None
-    assert confirm.check(True, T0 + timedelta(seconds=30)) is Confirmation.FAILED
+    # Live, the relay took about 28 s just to stop reporting closed.
+    assert confirm.check(None, T0 + timedelta(seconds=47)) is None
+    assert confirm.check(True, T0 + timedelta(seconds=89)) is None
+    assert confirm.check(True, T0 + timedelta(seconds=90)) is Confirmation.FAILED
     assert confirm.shown(True) is True
