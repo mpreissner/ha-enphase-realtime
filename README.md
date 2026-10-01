@@ -33,7 +33,7 @@ microinverters and Envoy firmware D8.3.5528.
 | Charge from grid switch | Working. The cloud write and its local confirmation have been checked on the live system |
 | Battery maintenance | **New.** Tested against captured data. It hasn't yet run a charge on the live system. Changes off by default |
 | Battery shutdown level number | Working. The cloud write and its local confirmation have been checked on the live system |
-| Storage mode select | Working. Profile changes and their local confirmation have been checked on the live system |
+| Storage mode select | Working. Profile changes have been checked on the live system. They are confirmed from the cloud, because the Envoy doesn't report the profile |
 | Reserve battery level number | The cloud write is proven. Whether the Envoy reports the new value where the integration looks for it hasn't been checked yet, so confirmation may time out even when the change took effect |
 | Grid enabled switch | **Experimental.** It has opened and closed the real relay on the reference site (see [Grid relay](#grid-relay)). Changes off by default |
 | Dry-contact controls | **Experimental.** The switch, battery-level numbers and action selects have been checked on the live system. The mode select uses the same write but hasn't been tried. In the grid relay test the contacts didn't shed their loads off grid; that's still being investigated. Changes off by default |
