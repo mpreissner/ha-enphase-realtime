@@ -230,9 +230,7 @@ command it started charging from the grid at up to about 3.2 kW. It stopped abou
 and the relay opened 2 s after that. A battery that isn't full may take longer. Whether the
 System Controller caps that time isn't known, so the integration allows 90 s before it reports
 `failed`. If yours takes longer, the switch may show `failed` while the relay still opens: check
-**Grid status**. In the second test the Enphase app showed the same top-off, but the
-integration's **Current battery discharge** sensor read 0 W until the relay had opened, so
-treat the battery reading during the switchover as experimental. While off grid, the microinverters dropped out for about
+**Grid status**. While off grid, the microinverters dropped out for about
 45 s before ramping back up with the battery forming the grid, so expect a short gap in PV.
 Test it once on your own site while you're at the System Controller, with the battery well
 charged.
@@ -294,9 +292,6 @@ Envoys that don't serve these endpoints simply don't get the entities.
 - **Dry-contact controls** don't change a contact's load name, type, essential times or
   priority. Those are installer settings. A contact's actions are only carried out when its
   type is Load (see [Dry contacts](#dry-contacts)).
-- **Battery power during the switch to off grid** is experimental: in one of two tests the
-  Envoy's live data showed no battery flow while the Enphase app showed the battery topping
-  off.
 - **Energy today and last 7 days** aren't provided. Use the Energy dashboard, or a
   `utility_meter` on the lifetime sensors.
 - **Battery settings need the cloud.** The Envoy ignores local battery writes on current

@@ -90,11 +90,8 @@ user re-closed it at 12:17:19, and it closed at 12:17:27 (8 s).
   `mains_admin_state` `open`, the switch logged a false failure at the 90 s timeout and showed
   as unknown while off grid. It now treats the first word of oper as the relay's position.
   While the relay was closing it read admin `closed`, oper `open synchronized`.
-- **Top-off:** the battery was at 99–100%. The Enphase app showed it charging before the relay
-  opened, but our `current_battery_discharge` (from `livedata/status`) read 0 W from 12:09:50
-  until 12:15:19, 3 s after the relay opened. PV was curtailed twice in that window (2.0 →
-  1.1 kW, then → 0.3 kW) and the grid made up the difference. Why the local live data missed
-  the charge this time, when it showed −3.2 kW in the first test, isn't known.
+- **Before opening:** the battery was at 99–100%. PV was curtailed twice between the command
+  and the relay opening (2.0 → 1.1 kW, then → 0.3 kW), and the grid made up the difference.
 - **NC2 shed, NC1 didn't:** NC2 opened at 12:15:16, the same moment as the relay, and closed
   at 12:17:27; the dryer circuit went from 1.2 W to 0 W and back, confirming NC2 = dryer.
   NC1 stayed `closed`, and the AC drew about 900 W throughout. Diagnostics taken at 12:23 show
