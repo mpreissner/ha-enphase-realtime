@@ -339,6 +339,12 @@ class Relay:
     def grid_connected(self) -> bool:
         return self.oper_state == "closed"
 
+    @property
+    def settled(self) -> bool:
+        """The relay has done what it was told. Off grid, `mains_oper_state` reads "open
+        synchronizing" then "open synchronized", never plain "open" (FINDINGS 2026-10-01)."""
+        return self.oper_state.split(" ", 1)[0] == self.admin_state
+
     @classmethod
     def from_payload(cls, data: Any) -> Relay:
         with _parsing("/ivp/ensemble/relay"):
