@@ -27,19 +27,21 @@ replaced. This differs from pyenphase, which rebuilds the object from its model.
 
 ## 3. Gate
 
-The controls exist only when both of these hold:
+The controls exist on every site with a System Controller (`has_enpower`), as in the core
+integration, and show the contacts' state and settings. Turning the option off hides nothing.
 
-- the site has a System Controller (`has_enpower`);
-- the new option **Allow dry-contact control** (`allow_dry_contact_control`) is on. It is off
-  by default, like `allow_grid_relay_control`, because the contacts switch real loads.
+Writes need the option **Allow dry-contact control** (`allow_dry_contact_control`). It is off
+by default, like `allow_grid_relay_control`, because the contacts switch real loads. With it
+off, every write raises `ServiceValidationError` (`dry_contact_control_off`) pointing to the
+option, and nothing is sent.
 
-Without the option, the read-only binary sensor and diagnostic sensors stay as they are. The
-controls are added alongside them, not in their place.
+The controls replace the read-only binary sensor and diagnostic sensors that earlier versions
+created: they showed the same state twice. Setup removes those registry entries (unique IDs
+`{envoy serial}_dry_contact_*` on the binary_sensor and sensor platforms).
 
 ## 4. Entities
 
-Each contact gets the following entities, on the contact's own device (see **Device** below)
-alongside its read-only entities. The device is named after the contact's label: the Envoy's
+Each contact gets the following entities, on the contact's own device (see **Device** below). The device is named after the contact's label: the Envoy's
 `load_name`, or the contact ID when that's empty. The entity names are the core integration's.
 
 | Platform | Key (unique ID `{envoy serial}_{key}`) | Name | Envoy field | Values |
@@ -55,8 +57,8 @@ alongside its read-only entities. The device is named after the contact's label:
 - **Actions:** `powered` = `apply`, `not_powered` = `shed`, `schedule` = `schedule`,
   `none` = `none`. These are the core integration's option names.
 - **Unrecognised values:** an Envoy value outside these maps shows as unknown.
-- **Unique IDs:** the keys are the same as the read-only entities', on other platforms. Home
-  Assistant keys unique IDs per platform, so the two don't clash.
+- **Categories:** as in the core integration, the switch and selects have no entity category
+  (they show under Controls) and the two numbers are `config`.
 - **Device:** one per contact, as in the core integration: identifier
   `{envoy serial}_{id}`, model "Dry contact relay", linked to the System Controller (or the
   Envoy on a site without one). A fresh install gets core's entity IDs, such as `switch.nc1`

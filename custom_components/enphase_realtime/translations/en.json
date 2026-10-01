@@ -74,7 +74,7 @@
           "stream_interval": "Stream readings arrive about every second. 0 updates entities with every reading; a higher value updates them at most that often, which writes less to the recorder.",
           "cloud_interval": "How often to read battery settings from Enphase's servers.",
           "allow_grid_relay_control": "Creates a \"Grid enabled\" switch that takes the house off the grid and back. Off the grid, the house runs from the battery until it is switched back on, and that can't be done remotely if Home Assistant or the network goes down with it.",
-          "allow_dry_contact_control": "Creates controls for the System Controller's dry contacts: a switch to open and close each one, and its mode, actions and battery levels. The contacts switch whatever loads the installer wired to them.",
+          "allow_dry_contact_control": "Lets Home Assistant change the System Controller's dry contacts: open and close each one, and set its mode, actions and battery levels. Without it, the dry contacts' entities only show their state. The contacts switch whatever loads the installer wired to them.",
           "backup_load_entity": "Optional. A power sensor on the feed into the panel the Enphase system backs up, such as a smart panel's main feed. Adds \"Enphase overhead\" power and energy sensors: the Envoy's load less this sensor, which is what the Enphase equipment itself draws."
         }
       }
@@ -111,6 +111,9 @@
     },
     "dry_contact_write_failed": {
       "message": "The Envoy didn't accept the change to dry contact {contact}: {error}"
+    },
+    "dry_contact_control_off": {
+      "message": "Dry-contact control is off. Turn on \"Allow dry-contact control\" in the integration's options to change the dry contacts."
     },
     "dry_contact_levels_invalid": {
       "message": "A dry contact's cutoff battery level ({low}%) must be below its restore battery level ({high}%)."

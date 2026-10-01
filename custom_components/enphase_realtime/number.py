@@ -59,7 +59,8 @@ BACKUP_RESERVE = EnphaseNumberDescription(
     icon="mdi:battery-lock",
     native_unit_of_measurement=PERCENTAGE,
     native_step=1,
-    mode=NumberMode.BOX,
+    # A slider, as in the core integration.
+    mode=NumberMode.SLIDER,
     value_fn=lambda d: d.secctrl.configured_backup_soc,
 )
 
@@ -222,6 +223,7 @@ def _contact_levels(contact_id: str) -> list[EnphaseNumberDescription]:
             native_max_value=100,
             native_step=1,
             mode=NumberMode.BOX,
+            entity_category=EntityCategory.CONFIG,
             value_fn=lambda d, f=field: _level(getattr(d.dry_contact_settings[contact_id], f)),
         )
         for field, name, icon in _CONTACT_LEVELS
@@ -241,6 +243,7 @@ class DryContactLevelNumber(DryContactControl[int], NumberEntity):
         return self._shown()
 
     async def async_set_native_value(self, value: float) -> None:
+        self._check_allowed()
         level = round(value)
         field = self.entity_description.key.removeprefix(f"dry_contact_{self._contact_id}_")
         other = self.coordinator.dry_contact_setting(

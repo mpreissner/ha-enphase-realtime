@@ -9,8 +9,9 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_call_later
 
@@ -65,15 +66,27 @@ def contact_label(data: SlowData, contact_id: str) -> str:
 
 
 def dry_contact_controls(entry: EnphaseConfigEntry) -> list[str]:
-    """The contact IDs to make controls for: none unless the owner allowed it (spec 3)."""
+    """The contact IDs to make controls for. They exist whether or not the owner allowed
+    control, as in the core integration, but refuse writes until then (spec 3)."""
     rt = entry.runtime_data
-    if not rt.hardware.has_enpower or not entry.options.get(
-        CONF_ALLOW_DRY_CONTACTS, DEFAULT_ALLOW_DRY_CONTACTS
-    ):
+    if not rt.hardware.has_enpower:
         return []
     data = rt.slow.data
     # A settings write needs the contact's full object, so both endpoints must list it.
     return [c for c in data.dry_contact_states if c in data.dry_contact_settings]
+
+
+@callback
+def remove_read_only_contacts(
+    hass: HomeAssistant, entry: EnphaseConfigEntry, platform: str
+) -> None:
+    """Drop the read-only contact entities that versions before 0.4 created; the controls
+    now show the same state."""
+    registry = er.async_get(hass)
+    prefix = f"{entry.runtime_data.serial}_dry_contact_"
+    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if entity.domain == platform and entity.unique_id.startswith(prefix):
+            registry.async_remove(entity.entity_id)
 
 
 class DryContactControl[T](ConfirmingControl[SlowData, T]):
@@ -91,6 +104,9 @@ class DryContactControl[T](ConfirmingControl[SlowData, T]):
         contact_id: str,
     ) -> None:
         super().__init__(slow, description, device, serial, DRY_CONTACT_CONFIRM_TIMEOUT)
+        # As in the core integration: the switch and selects are controls, the battery
+        # levels configuration (their descriptions say so).
+        self._attr_entity_category = description.entity_category
         self._contact_id = contact_id
         self._cancel_poll: CALLBACK_TYPE | None = None
 
@@ -98,7 +114,16 @@ class DryContactControl[T](ConfirmingControl[SlowData, T]):
         await super().async_added_to_hass()
         self.async_on_remove(self._stop_polling)
 
+    def _check_allowed(self) -> None:
+        """Writes need the owner's opt-in: the contacts switch real loads."""
+        entry = self.coordinator.config_entry
+        if not entry.options.get(CONF_ALLOW_DRY_CONTACTS, DEFAULT_ALLOW_DRY_CONTACTS):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="dry_contact_control_off"
+            )
+
     async def _async_write(self, requested: T, write: Callable[[], Awaitable[None]]) -> None:
+        self._check_allowed()
         if not self._confirm.pending and self._value()[1] == requested:
             return
         _LOGGER.info("%s: asking the Envoy for %s", self.entity_id, requested)

@@ -435,15 +435,10 @@ Parity with the core `inverter_*` entities. Disabled by default.
 
 ### 5.6 Dry contacts
 
-For each contact:
-
-- a binary sensor for relay state (from `ensemble/dry_contacts`)
-- diagnostic sensors for `mode`, `grid_action`, `micro_grid_action`, `gen_action`, `soc_low`
-  and `soc_high` (from `ss/dry_contact_settings`)
-
-With the option **Allow dry-contact control** (off by default), each contact also gets the
-core's controls: a switch for the relay, selects for `mode` and the three actions, and numbers
-for the cutoff and restore levels. The design is in [dry-contacts.md](dry-contacts.md).
+Each contact gets the core's controls: a switch for the relay (from `ensemble/dry_contacts`),
+selects for `mode` and the three actions, and numbers for the cutoff and restore levels (from
+`ss/dry_contact_settings`). They always show state; writes need the option **Allow dry-contact
+control** (off by default). The design is in [dry-contacts.md](dry-contacts.md).
 
 ## 6. Control
 

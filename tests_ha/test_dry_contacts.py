@@ -9,7 +9,13 @@ import pytest
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.number import ATTR_VALUE, SERVICE_SET_VALUE
 from homeassistant.components.select import ATTR_OPTION, SERVICE_SELECT_OPTION
-from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_OFF, SERVICE_TURN_ON, STATE_ON
+from homeassistant.const import (
+    ATTR_ENTITY_ID,
+    SERVICE_TURN_OFF,
+    SERVICE_TURN_ON,
+    STATE_ON,
+    EntityCategory,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import device_registry as dr
@@ -122,14 +128,38 @@ CONTROLS = (
 )
 
 
-async def test_no_controls_unless_allowed(
+async def test_writes_refused_unless_allowed(
     hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
 ) -> None:
     await _setup(hass, config_entry)
+    # Nothing is hidden: the controls show the contacts' state either way.
     for platform, key in CONTROLS:
-        assert _id(hass, platform, key) is None
-    # The read-only entities are there regardless.
-    assert _id(hass, "binary_sensor", "dry_contact_NC1") is not None
+        assert _id(hass, platform, key) is not None
+    assert _state(hass, _entity(hass, "switch", "dry_contact_NC1")) == (STATE_ON, None)
+    with pytest.raises(ServiceValidationError) as err:
+        await _switch(hass, "dry_contact_NC1", SERVICE_TURN_OFF)
+    assert err.value.translation_key == "dry_contact_control_off"
+    with pytest.raises(ServiceValidationError):
+        await _select(hass, "dry_contact_NC1_mode", "battery")
+    with pytest.raises(ServiceValidationError):
+        await _number(hass, "dry_contact_NC1_soc_low", 20)
+    assert fake.envoy_posts == []
+
+
+async def test_read_only_contact_entities_removed(
+    hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
+) -> None:
+    registry = er.async_get(hass)
+    config_entry.add_to_hass(hass)
+    for platform, key in (
+        ("binary_sensor", "dry_contact_NC1"),
+        ("sensor", "dry_contact_NC1_mode"),
+    ):
+        registry.async_get_or_create(platform, DOMAIN, f"{SERIAL}_{key}", config_entry=config_entry)
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert _id(hass, "binary_sensor", "dry_contact_NC1") is None
+    assert _id(hass, "sensor", "dry_contact_NC1_mode") is None
 
 
 async def test_no_controls_without_a_system_controller(
@@ -163,7 +193,12 @@ async def test_controls_and_their_states(hass: HomeAssistant, fake: FakeEnphase)
     assert entity.entity_id == "switch.nc1"
     assert _entity(hass, "select", "dry_contact_NC1_mode") == "select.nc1_mode"
     assert _entity(hass, "number", "dry_contact_NC1_soc_low") == "number.nc1_cutoff_battery_level"
-    assert _entity(hass, "binary_sensor", "dry_contact_NC1") == "binary_sensor.nc1"
+    # Laid out as in the core integration: controls, with the battery levels as configuration.
+    registry = er.async_get(hass)
+    for platform, key in CONTROLS:
+        category = registry.async_get(_entity(hass, platform, key)).entity_category
+        expected = EntityCategory.CONFIG if platform == "number" else None
+        assert category == expected, key
 
 
 async def test_switch_confirms_on_a_quick_re_read(
