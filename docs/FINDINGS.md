@@ -63,6 +63,11 @@ so the old 30 s confirmation failed falsely. What oper reports in between wasn't
 switch now logs every relay state change at debug. Closing confirmed in about 15 s. No relay
 timeouts during the test.
 
+- **Top-off before opening:** the battery read 100% and idle (Full Backup). From 10:51:26, 9 s
+  after the command, it charged from the grid, ramping to about 3.2 kW, then dropped to 0 W at
+  10:51:43; the relay opened at 10:51:45. Lifetime battery charged rose about 9 Wh over the
+  test. So the 28 s looks like a deliberate top-off before islanding, not a slow relay. Whether
+  there's a cap on how long it tops off (with a less-full battery) is unknown.
 - **PV while islanded:** the microinverters dropped out at the switchover and stayed at about
   −20 W (standby draw) for about 45 s. They then ramped back up with the battery forming the grid
   (14 W at 10:52:34, 248 W at 10:52:43), dropped out again at the reconnect, and came back about

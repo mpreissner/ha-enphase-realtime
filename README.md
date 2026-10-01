@@ -216,7 +216,15 @@ the **Grid status** binary sensor on the IQ System Controller device. Grid statu
 enabled on means the grid has gone.
 
 On the reference site the switch has opened and closed the real relay. Opening took about
-28 s to confirm and closing about 15 s. While off grid, the microinverters dropped out for about
+28 s to confirm and closing about 15 s.
+
+The delay before opening looks deliberate: the System Controller appears to top off the battery
+before going off grid. In the test the battery read 100% and was idle. About 9 s after the open
+command it started charging from the grid at up to about 3.2 kW. It stopped about 17 s later,
+and the relay opened 2 s after that. A battery that isn't full may take longer. Whether the
+System Controller caps that time isn't known, so the integration allows 90 s before it reports
+`failed`. If yours takes longer, the switch may show `failed` while the relay still opens: check
+**Grid status**. While off grid, the microinverters dropped out for about
 45 s before ramping back up with the battery forming the grid, so expect a short gap in PV.
 Test it once on your own site while you're at the System Controller, with the battery well
 charged.
