@@ -21,7 +21,7 @@ See [docs/specs/core-integration.md](docs/specs/core-integration.md) for the des
 
 ## Status
 
-**Beta.** Everything in the design is built and covered by tests. It's been run mainly on one
+Everything in the design is built and covered by tests. It's been run mainly on one
 site, a split-phase US system with an IQ System Controller, one IQ Battery 5P and Envoy firmware
 D8.3.6086. Diagnostics have also come in from a second site: a three-phase system in
 Australia with an IQ System Controller 3 INT, three IQ Battery 5Ps, 24 IQ8HC
@@ -221,7 +221,7 @@ enabled on means the grid has gone.
 
 On the reference site the switch has opened and closed the real relay twice. Opening took
 about 27–28 s to confirm, and closing 8–15 s. While off grid, the Envoy reports the relay as
-"open synchronizing" and then "open synchronized"; versions before 0.3.2 didn't recognise those
+"open synchronizing" and then "open synchronized"; versions before 1.0.0 didn't recognise those
 and showed the switch as unknown, then `failed`, even though the relay had opened.
 
 The delay before opening looks deliberate: the System Controller appears to top off the battery
