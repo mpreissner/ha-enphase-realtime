@@ -31,12 +31,12 @@ microinverters and Envoy firmware D8.3.5528.
 |---|---|
 | Real-time power, energy, battery and System Controller sensors | Working on the reference site. The lifetime energy counters match the core integration's |
 | Charge from grid switch | Working. The cloud write and its local confirmation have been checked on the live system |
-| Battery maintenance | **New.** Tested against captured data. It hasn't yet run a charge on the live system. Changes off by default |
+| Battery maintenance | **Experimental.** Tested against captured data. It hasn't yet run a charge on the live system. Changes off by default |
 | Battery shutdown level number | Working. The cloud write and its local confirmation have been checked on the live system |
 | Storage mode select | Working. Profile changes have been checked on the live system. They are confirmed from the cloud, because the Envoy doesn't report the profile |
 | Reserve battery level number | The cloud write is proven. Whether the Envoy reports the new value where the integration looks for it hasn't been checked yet, so confirmation may time out even when the change took effect |
 | Grid enabled switch | **Experimental.** It has opened and closed the real relay on the reference site (see [Grid relay](#grid-relay)). Changes off by default |
-| Dry-contact controls | **Experimental.** The switch, battery-level numbers and action selects have been checked on the live system. The mode select uses the same write but hasn't been tried. In the grid relay test the contacts didn't shed their loads off grid; that's still being investigated. Changes off by default |
+| Dry-contact controls | **Experimental.** The switch, battery-level numbers and action selects have been checked on the live system. The mode select uses the same write but hasn't been tried. Off grid, a contact set to Not powered on the microgrid shed its load only when the installer had set its type to Load (see [Dry contacts](#dry-contacts)). Changes off by default |
 | Microinverter sensors | Working. Checked against live production on the reference site |
 | IQ Meter Collar and C6 Combiner Controller sensors | **New.** Tested against a capture from another site (pyenphase's test data); not yet seen on a live system. Diagnostics from a collar site are very welcome |
 | 1 s polling over a full day | Done: about 40 hours on the reference site, with other clients polling the same Envoy. About 0.3% of polls failed, mostly brief timeouts on the relay status request, which only rarely make entities unavailable. If your Envoy starts timing out, raise the live poll interval |
@@ -196,6 +196,10 @@ frees the scheduler. Maintenance never changes the profile itself.
 
 These entities only appear where the Charge from grid switch does.
 
+Battery maintenance is **experimental**: its logic is covered by tests against captured data,
+but it hasn't yet run a real charge. Watch the first few cycles, and open an issue if it
+doesn't behave as described.
+
 ## Grid relay
 
 On a site with an IQ System Controller, the option **Allow switching the grid relay** creates a
@@ -215,8 +219,10 @@ The switch shows what the relay has been told. For whether the house is actually
 the **Grid status** binary sensor on the IQ System Controller device. Grid status off with Grid
 enabled on means the grid has gone.
 
-On the reference site the switch has opened and closed the real relay. Opening took about
-28 s to confirm and closing about 15 s.
+On the reference site the switch has opened and closed the real relay twice. Opening took
+about 27–28 s to confirm, and closing 8–15 s. While off grid, the Envoy reports the relay as
+"open synchronizing" and then "open synchronized"; versions before 0.3.2 didn't recognise those
+and showed the switch as unknown, then `failed`, even though the relay had opened.
 
 The delay before opening looks deliberate: the System Controller appears to top off the battery
 before going off grid. In the test the battery read 100% and was idle. About 9 s after the open
@@ -224,7 +230,9 @@ command it started charging from the grid at up to about 3.2 kW. It stopped abou
 and the relay opened 2 s after that. A battery that isn't full may take longer. Whether the
 System Controller caps that time isn't known, so the integration allows 90 s before it reports
 `failed`. If yours takes longer, the switch may show `failed` while the relay still opens: check
-**Grid status**. While off grid, the microinverters dropped out for about
+**Grid status**. In the second test the Enphase app showed the same top-off, but the
+integration's **Current battery discharge** sensor read 0 W until the relay had opened, so
+treat the battery reading during the switchover as experimental. While off grid, the microinverters dropped out for about
 45 s before ramping back up with the battery forming the grid, so expect a short gap in PV.
 Test it once on your own site while you're at the System Controller, with the battery well
 charged.
@@ -247,11 +255,16 @@ with it off, a change is refused with a message pointing to the option. Like the
 In Battery level mode the System Controller switches the contact itself, so it may undo a
 manual switch.
 
+The actions only take effect on contacts whose **type** the installer has set to Load. In the
+second grid relay test on the reference site, NC2 (type Load) opened with the relay and shed its
+load, but NC1 (type None) stayed closed with identical settings. The type isn't shown in the
+Enphase app, and only an installer or Enphase support can change it. If a contact set to
+Not powered doesn't shed off grid, ask them to check its type. The integration's diagnostics
+download includes it, under `/ivp/ss/dry_contact_settings`.
+
 Everything but the mode select has been tried on a live system (see [Status](#status)). If an
 action for the current grid state is Powered or Not powered, the System Controller may override
-the switch. Don't rely on the microgrid action alone to shed loads yet: when the reference site
-was taken off grid with the Grid enabled switch, contacts set to Not powered on the microgrid
-stayed closed. That's still being investigated. After a mode, action or level change, the Envoy may report the NC contacts as open
+the switch. After a mode, action or level change, the Envoy may report the NC contacts as open
 for up to about a minute, although the relays haven't moved. Give automations that trigger on a
 contact's state a `for:` duration.
 
@@ -279,7 +292,11 @@ Envoys that don't serve these endpoints simply don't get the entities.
   consumption can turn charge from grid on if it was last on in that mode. Modes outside these
   three, such as AI Optimisation, show as unknown.
 - **Dry-contact controls** don't change a contact's load name, type, essential times or
-  priority. Those are installer settings.
+  priority. Those are installer settings. A contact's actions are only carried out when its
+  type is Load (see [Dry contacts](#dry-contacts)).
+- **Battery power during the switch to off grid** is experimental: in one of two tests the
+  Envoy's live data showed no battery flow while the Enphase app showed the battery topping
+  off.
 - **Energy today and last 7 days** aren't provided. Use the Energy dashboard, or a
   `utility_meter` on the lifetime sensors.
 - **Battery settings need the cloud.** The Envoy ignores local battery writes on current

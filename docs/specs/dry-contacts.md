@@ -64,8 +64,12 @@ Each contact gets the following entities, on the contact's own device (see **Dev
   or `"false"`, and a write sends it back as a string (anything else shows as unknown). It's
   `config`. What it does isn't documented. On the reference site it was `"true"` on all four
   contacts from the first capture, and the contacts didn't open in the 2026-10-01 grid-relay
-  test. It was set to `"false"` on 2026-10-01 to find out whether it was the cause (FINDINGS).
+  test. It was set to `"false"` on 2026-10-01 to find out whether it was the cause. It wasn't: in
+  the second test the same day NC2 shed and NC1 didn't, with `manual_override` `"false"` on both.
   A write works like the other settings writes (5).
+- **Type:** the actions appear to be carried out only on contacts with `type` `LOAD`. In the
+  second 2026-10-01 relay test NC2 (`LOAD`) shed and NC1 (`NONE`) didn't, with otherwise
+  identical settings (FINDINGS). `type` is an installer field (6).
 - **Device:** one per contact, as in the core integration: identifier
   `{envoy serial}_{id}`, model "Dry contact relay", linked to the System Controller (or the
   Envoy on a site without one). A fresh install gets core's entity IDs, such as `switch.nc1`
