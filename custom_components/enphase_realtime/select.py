@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import EnphaseConfigEntry
-from .dry_contact import DryContactControl, contact_label, contacts_device, dry_contact_controls
+from .dry_contact import DryContactControl, contact_device, dry_contact_controls
 
 PARALLEL_UPDATES = 1
 
@@ -29,22 +29,21 @@ class DryContactSelectDescription(SelectEntityDescription):
 
 # (Envoy field, name suffix, options, translation key)
 _SETTINGS = (
-    ("mode", "mode", MODES, "dry_contact_mode"),
-    ("grid_action", "grid action", ACTIONS, "dry_contact_action"),
-    ("micro_grid_action", "microgrid action", ACTIONS, "dry_contact_action"),
-    ("gen_action", "generator action", ACTIONS, "dry_contact_action"),
+    ("mode", "Mode", MODES, "dry_contact_mode"),
+    ("grid_action", "Grid action", ACTIONS, "dry_contact_action"),
+    ("micro_grid_action", "Microgrid action", ACTIONS, "dry_contact_action"),
+    ("gen_action", "Generator action", ACTIONS, "dry_contact_action"),
 )
 
 
-def _descriptions(data: Any, contact_id: str) -> list[DryContactSelectDescription]:
-    label = contact_label(data, contact_id)
+def _descriptions(contact_id: str) -> list[DryContactSelectDescription]:
     out = []
     for field, name, to_envoy, translation_key in _SETTINGS:
         from_envoy = {v: k for k, v in to_envoy.items()}
         out.append(
             DryContactSelectDescription(
                 key=f"dry_contact_{contact_id}_{field}",
-                name=f"{label} {name}",
+                name=name,
                 translation_key=translation_key,
                 options=list(to_envoy),
                 field=field,
@@ -85,9 +84,8 @@ async def async_setup_entry(
     if not contacts:
         return
     rt = entry.runtime_data
-    device = contacts_device(entry)
     async_add_entities(
-        DryContactSelect(rt.slow, d, device, rt.serial, contact_id)
+        DryContactSelect(rt.slow, d, contact_device(hass, entry, contact_id), rt.serial, contact_id)
         for contact_id in contacts
-        for d in _descriptions(rt.slow.data, contact_id)
+        for d in _descriptions(contact_id)
     )

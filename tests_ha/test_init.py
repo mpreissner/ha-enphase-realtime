@@ -106,7 +106,7 @@ async def test_entity_ids_match_the_core_integration(
         f"sensor.{envoy}_frequency_net_consumption_ct",
         f"sensor.{envoy}_net_consumption_ct_current_l1",
         f"sensor.{envoy}_power_factor_net_consumption_ct_l1",
-        f"switch.{envoy}_charge_from_grid",
+        f"switch.enpower_{sc}_charge_from_grid",
         f"sensor.encharge_{battery}_battery",
         f"sensor.encharge_{battery}_temperature",
         f"sensor.encharge_{battery}_last_reported",
@@ -121,7 +121,7 @@ async def test_entity_ids_match_the_core_integration(
     assert expected - ids == set()
 
 
-async def test_child_devices_hang_off_the_envoy(
+async def test_devices_hang_off_the_envoy(
     hass: HomeAssistant,
     fake: FakeEnphase,
     config_entry: MockConfigEntry,
@@ -132,13 +132,15 @@ async def test_child_devices_hang_off_the_envoy(
     envoy = registry.async_get(config_entry.runtime_data.envoy_device_id)
     assert envoy is not None
     assert (DOMAIN, SERIAL) in envoy.identifiers
-    children = [
-        d
-        for d in dr.async_entries_for_config_entry(registry, config_entry.entry_id)
-        if d.id != envoy.id
-    ]
+    devices = dr.async_entries_for_config_entry(registry, config_entry.entry_id)
+    children = [d for d in devices if d.id != envoy.id and d.model != "Dry contact relay"]
     assert children
     assert all(d.via_device_id == envoy.id for d in children)
+    # Each dry contact hangs off the System Controller, as in the core integration.
+    (controller,) = (d for d in children if d.model == "IQ System Controller")
+    relays = [d for d in devices if d.model == "Dry contact relay"]
+    assert sorted(d.name for d in relays) == ["NC1", "NC2", "NO1", "NO2"]
+    assert all(d.via_device_id == controller.id for d in relays)
     assert "via_device" not in caplog.text  # the form deprecated in HA 2026.9
 
 

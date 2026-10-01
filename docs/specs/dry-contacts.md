@@ -38,28 +38,30 @@ controls are added alongside them, not in their place.
 
 ## 4. Entities
 
-Each contact gets the following entities. They sit on the same device as the contact's
-existing entities (the System Controller, or the Envoy on a site without one). Names start
-with the contact's label: the Envoy's `load_name`, or the contact ID when that's empty.
+Each contact gets the following entities, on the contact's own device (see **Device** below)
+alongside its read-only entities. The device is named after the contact's label: the Envoy's
+`load_name`, or the contact ID when that's empty. The entity names are the core integration's.
 
 | Platform | Key (unique ID `{envoy serial}_{key}`) | Name | Envoy field | Values |
 |---|---|---|---|---|
-| switch | `dry_contact_{id}` | `{label}` | `ensemble/dry_contacts` `status` | on = `closed` |
-| select | `dry_contact_{id}_mode` | `{label} mode` | `mode` | `standard` = `manual`, `battery` = `soc` |
-| select | `dry_contact_{id}_grid_action` | `{label} grid action` | `grid_action` | see below |
-| select | `dry_contact_{id}_micro_grid_action` | `{label} microgrid action` | `micro_grid_action` | see below |
-| select | `dry_contact_{id}_gen_action` | `{label} generator action` | `gen_action` | see below |
-| number | `dry_contact_{id}_soc_low` | `{label} cutoff battery level` | `soc_low` | 0–100 % |
-| number | `dry_contact_{id}_soc_high` | `{label} restore battery level` | `soc_high` | 0–100 % |
+| switch | `dry_contact_{id}` | (the device's name) | `ensemble/dry_contacts` `status` | on = `closed` |
+| select | `dry_contact_{id}_mode` | Mode | `mode` | `standard` = `manual`, `battery` = `soc` |
+| select | `dry_contact_{id}_grid_action` | Grid action | `grid_action` | see below |
+| select | `dry_contact_{id}_micro_grid_action` | Microgrid action | `micro_grid_action` | see below |
+| select | `dry_contact_{id}_gen_action` | Generator action | `gen_action` | see below |
+| number | `dry_contact_{id}_soc_low` | Cutoff battery level | `soc_low` | 0–100 % |
+| number | `dry_contact_{id}_soc_high` | Restore battery level | `soc_high` | 0–100 % |
 
 - **Actions:** `powered` = `apply`, `not_powered` = `shed`, `schedule` = `schedule`,
   `none` = `none`. These are the core integration's option names.
 - **Unrecognised values:** an Envoy value outside these maps shows as unknown.
 - **Unique IDs:** the keys are the same as the read-only entities', on other platforms. Home
   Assistant keys unique IDs per platform, so the two don't clash.
-- **Device:** the core integration makes a device per contact. Ours stay on the System
-  Controller with the existing contact entities, so the entity IDs that 0.2.0 created don't
-  change.
+- **Device:** one per contact, as in the core integration: identifier
+  `{envoy serial}_{id}`, model "Dry contact relay", linked to the System Controller (or the
+  Envoy on a site without one). A fresh install gets core's entity IDs, such as `switch.nc1`
+  and `select.nc1_mode`. Unique IDs didn't change when the entities moved off the System
+  Controller, so an existing install keeps its entity IDs.
 - **Levels:** the cutoff level must stay below the restore level. A write that breaks this is
   refused with a validation error, and nothing is sent.
 

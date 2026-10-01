@@ -321,20 +321,23 @@ from the device name. The model carries Enphase's current product name.
 | `Enpower <serial>` | IQ System Controller |
 | `Encharge <serial>`, one per battery | IQ Battery |
 | `Inverter <serial>`, one per microinverter, all disabled by default | IQ Microinverter |
+| The contact's load name (or ID), one per dry contact, linked to the System Controller | Dry contact relay |
 
 The Envoy device is registered at setup, before the platforms load, and the others link to it
 with `via_device_id`, its device registry ID.
 
 **Naming.** Where the core integration has the same entity, it gets the core's name and device,
 so the entity ID is the same and a move keeps its history without editing IDs
-(`docs/MIGRATION.md`). Grid status, the grid relay switch and the reserve number
-sit on the System Controller, as in core, and on the Envoy on a site without one. The
+(`docs/MIGRATION.md`). Grid status, the grid relay switch, charge from grid and the reserve number
+sit on the System Controller, as in core, and on the Envoy on a site without one. Each dry
+contact's entities sit on that contact's own device. The
 Enphase-Envoy-mqtt-json add-on has no fixed names (users define their own MQTT sensors), so
 there's nothing to match there. Entities core doesn't have get plain names: Grid, Load and PV
 power, Battery shutdown level (the Enphase app's term).
 
 **Unique IDs:** `<serial>_<key>`, where the key is usually the entity ID's suffix. The grid
-entities and the reserve number keep the Envoy's serial even on the System Controller device.
+entities, charge from grid, the reserve number and the dry contacts keep the Envoy's serial
+even on another device, so moving them between devices doesn't change entity IDs.
 
 Source key: **S** = stream, **R** = live (1 s), **F** = fast, **L** = slow, **C** = cloud.
 
