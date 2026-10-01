@@ -24,8 +24,8 @@ See [docs/specs/core-integration.md](docs/specs/core-integration.md) for the des
 **Beta.** Everything in the design is built and covered by tests. It's been run mainly on one
 site, a split-phase US system with an IQ System Controller, one IQ Battery 5P and Envoy firmware
 D8.3.6086. Diagnostics have also come in from a second site: a three-phase system in
-Australia with an IQ System Controller 3 INT, three IQ Battery 5Ps and 24 IQ8HC
-microinverters.
+Australia with an IQ System Controller 3 INT, three IQ Battery 5Ps, 24 IQ8HC
+microinverters and Envoy firmware D8.3.5528.
 
 | Feature | State |
 |---|---|
@@ -33,12 +33,13 @@ microinverters.
 | Charge from grid switch | Working. The cloud write and its local confirmation have been checked on the live system |
 | Battery maintenance | **New.** Tested against captured data. It hasn't yet run a charge on the live system. Changes off by default |
 | Battery shutdown level number | Working. The cloud write and its local confirmation have been checked on the live system |
+| Storage mode select | Working. Profile changes and their local confirmation have been checked on the live system |
 | Reserve battery level number | The cloud write is proven. Whether the Envoy reports the new value where the integration looks for it hasn't been checked yet, so confirmation may time out even when the change took effect |
-| Grid enabled switch | **Experimental.** It has opened and closed the real relay on the reference site: opening took about 28 s to confirm and closing about 15 s. Changes off by default |
+| Grid enabled switch | **Experimental.** It has opened and closed the real relay on the reference site (see [Grid relay](#grid-relay)). Changes off by default |
 | Dry-contact controls | **Experimental.** The switch, battery-level numbers and action selects have been checked on the live system. The mode select uses the same write but hasn't been tried. In the grid relay test the contacts didn't shed their loads off grid; that's still being investigated. Changes off by default |
-| Microinverter sensors | Working. Checked against live microinverter data on the reference site |
+| Microinverter sensors | Working. Checked against live production on the reference site |
 | IQ Meter Collar and C6 Combiner Controller sensors | **New.** Tested against a capture from another site (pyenphase's test data); not yet seen on a live system. Diagnostics from a collar site are very welcome |
-| 1 s polling over a full day | Done on the reference site. If your Envoy starts timing out, raise the live poll interval |
+| 1 s polling over a full day | Done: about 40 hours on the reference site, with other clients polling the same Envoy. About 0.3% of polls failed, mostly brief timeouts on the relay status request, which only rarely make entities unavailable. If your Envoy starts timing out, raise the live poll interval |
 | Three-phase and non-US sites | The Australian site's diagnostics show the right three-phase layout (three phases, 50 Hz), all three batteries, and a working cloud login from Australia. Grid relay and dry-contact changes haven't been tried there |
 | Single-phase sites | Supported by design, untested. Diagnostics from these sites are very welcome |
 
@@ -167,7 +168,8 @@ main monitors do. A large negative overhead usually means a CT is installed back
 
 Only equipment on the System Controller's side of the Envoy's CTs is included. If your IQ Gateway
 is powered from the combiner, ahead of the production CTs, its draw won't appear. On the
-reference site the overhead is about 8–9 W. See the [spec](docs/specs/enphase-overhead.md).
+reference site the overhead is about 8–15 W during the day. At night it reads close to 0 W,
+which isn't explained yet. See the [spec](docs/specs/enphase-overhead.md).
 
 ## Battery maintenance
 
@@ -207,14 +209,17 @@ Before every write the integration asks Enphase the same question the app asks
 (`grid_control_check`). If Enphase flags anything, or can't be reached, the relay isn't touched
 and the service call fails with the reason. The switch then shows the requested state until the
 Envoy reports that the relay has actually moved, and marks it `confirmation: confirmed`, or
-`failed` if it hasn't moved after 30 s.
+`failed` if it hasn't moved after 90 s.
 
 The switch shows what the relay has been told. For whether the house is actually on the grid, use
 the **Grid status** binary sensor on the IQ System Controller device. Grid status off with Grid
 enabled on means the grid has gone.
 
-The relay write hasn't yet been tried on a live system (see [Status](#status)). Test it once
-while you're at the System Controller, with the battery well charged.
+On the reference site the switch has opened and closed the real relay. Opening took about
+28 s to confirm and closing about 15 s. While off grid, the microinverters dropped out for about
+45 s before ramping back up with the battery forming the grid, so expect a short gap in PV.
+Test it once on your own site while you're at the System Controller, with the battery well
+charged.
 
 ## Dry contacts
 
@@ -236,7 +241,9 @@ manual switch.
 
 Everything but the mode select has been tried on a live system (see [Status](#status)). If an
 action for the current grid state is Powered or Not powered, the System Controller may override
-the switch. After a mode, action or level change, the Envoy may report the NC contacts as open
+the switch. Don't rely on the microgrid action alone to shed loads yet: when the reference site
+was taken off grid with the Grid enabled switch, contacts set to Not powered on the microgrid
+stayed closed. That's still being investigated. After a mode, action or level change, the Envoy may report the NC contacts as open
 for up to about a minute, although the relays haven't moved. Give automations that trigger on a
 contact's state a `for:` duration.
 
@@ -281,7 +288,8 @@ Envoys that don't serve these endpoints simply don't get the entities.
 Open an [issue](https://github.com/mpreissner/ha-enphase-realtime/issues) and attach the
 integration's diagnostics: **Settings → Devices & services → Enphase Realtime → ⋮ → Download
 diagnostics**. Serial numbers, tokens and login details are removed from the download. Reports
-from single-phase, three-phase and non-US sites help most.
+from single-phase sites, IQ Meter Collar sites and three-phase or non-US sites with a different
+setup help most.
 
 ## Acknowledgements
 
