@@ -8,7 +8,7 @@ Controller and IQ Battery sites.
   `/ivp/*` endpoints. Battery and controller state are polled every few seconds. Nothing is
   read from the slow legacy pages.
 - **Local control** for the settings the Envoy accepts locally: the IQ System Controller's
-  grid relay and dry contacts, both off by default (see [Grid relay](#grid-relay) and
+  grid relay and dry contacts, whose changes are both off by default (see [Grid relay](#grid-relay) and
   [Dry contacts](#dry-contacts)).
 - **Cloud control** for the settings it doesn't, such as the battery's charge-from-grid and
   reserve. Every cloud write is confirmed from the local Envoy values, because the cloud only
@@ -29,11 +29,11 @@ firmware D8.3.6086.
 |---|---|
 | Real-time power, energy, battery and System Controller sensors | Working on the reference site. The lifetime energy counters match the core integration's |
 | Charge from grid switch | Working. The cloud write and its local confirmation have been checked on the live system |
-| Battery maintenance | **New.** Tested against captured data. It hasn't yet run a charge on the live system. Off by default |
+| Battery maintenance | **New.** Tested against captured data. It hasn't yet run a charge on the live system. Changes off by default |
 | Battery shutdown level number | Working. The cloud write and its local confirmation have been checked on the live system |
 | Reserve battery level number | The cloud write is proven. Whether the Envoy reports the new value where the integration looks for it hasn't been checked yet, so confirmation may time out even when the change took effect |
-| Grid enabled switch | **Experimental.** Built and tested against captured data, but it has never switched a real relay. Off by default |
-| Dry-contact controls | **Experimental.** The switch, battery-level numbers and action selects have been checked on the live system. The mode select uses the same write but hasn't been tried. Off by default |
+| Grid enabled switch | **Experimental.** Built and tested against captured data, but it has never switched a real relay. Changes off by default |
+| Dry-contact controls | **Experimental.** The switch, battery-level numbers and action selects have been checked on the live system. The mode select uses the same write but hasn't been tried. Changes off by default |
 | Microinverter sensors | Built. Not checked against a producing array |
 | 1 s polling over a full day | Not yet measured. If your Envoy starts timing out, raise the live poll interval |
 | Single-phase and three-phase sites, non-US sites | Supported by design, untested. Diagnostics from these sites are very welcome |
@@ -78,7 +78,7 @@ If Enphase later refuses the saved login, Home Assistant asks you to log in agai
 - IQ System Controller: grid status, temperature and communication status
 - battery settings from the cloud: storage mode (read-only), charge from grid switch, battery
   shutdown level and reserve battery level numbers, and a "Pending cloud change" sensor
-- dry contacts: state and settings, plus optional controls (see [Dry contacts](#dry-contacts))
+- dry contacts: switch, mode, actions and battery levels, changeable with an option (see [Dry contacts](#dry-contacts))
 - microinverters: last reported power and time (disabled by default)
 - optionally, the Enphase equipment's own draw (see [Enphase overhead](#enphase-overhead))
 
@@ -209,19 +209,18 @@ while you're at the System Controller, with the battery well charged.
 
 ## Dry contacts
 
-On a site with an IQ System Controller, the option **Allow dry-contact control** adds controls
-for each dry contact (NC1, NC2, NO1, NO2). As in the core integration, each contact has its
-own device, linked to the System Controller and named after the contact's load name in the
+On a site with an IQ System Controller, each dry contact (NC1, NC2, NO1, NO2) gets the core
+integration's controls. As in the core integration, each contact has its own device, linked to the System Controller and named after the contact's load name in the
 Enphase installer settings, or its ID when it has none. The device holds:
 
-- a switch that closes (on) or opens (off) the contact;
-- selects for the mode (Standard, or Battery level) and for what the contact does on grid,
+- under Controls, a switch that closes (on) or opens (off) the contact, and selects for the mode (Standard, or Battery level) and for what the contact does on grid,
   on the microgrid and on a generator (Powered, Not powered, Follow schedule, None);
-- numbers for the cutoff and restore battery levels, used in Battery level mode. The cutoff
+- under Configuration, numbers for the cutoff and restore battery levels, used in Battery level mode. The cutoff
   must stay below the restore level.
 
-The option is off by default, because the contacts switch real loads. The read-only entities
-stay either way. Like the grid relay, each control shows the requested value with
+They show the contact's state and settings either way, but changing them needs the option
+**Allow dry-contact control**. It is off by default, because the contacts switch real loads;
+with it off, a change is refused with a message pointing to the option. Like the grid relay, each control shows the requested value with
 `confirmation: pending` until the Envoy reports it, then `confirmed`, or `failed` after 30 s.
 In Battery level mode the System Controller switches the contact itself, so it may undo a
 manual switch.

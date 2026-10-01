@@ -42,7 +42,7 @@ from .const import (
     PHASE_NAMES,
 )
 from .coordinator import FastData, LiveCoordinator, LiveFeed, SlowData
-from .dry_contact import contact_device
+from .dry_contact import remove_read_only_contacts
 from .entity import (
     IQ_BATTERY,
     IQ_MICROINVERTER,
@@ -431,32 +431,6 @@ def _inverter_sensors(serial: str) -> list[EnphaseSensorDescription]:
     ]
 
 
-_CONTACT_SETTINGS = (
-    ("mode", "Mode"),
-    ("grid_action", "Grid action"),
-    ("micro_grid_action", "Microgrid action"),
-    ("gen_action", "Generator action"),
-    ("soc_low", "Cutoff battery level"),
-    ("soc_high", "Restore battery level"),
-)
-
-
-def _contact_sensors(contact_id: str) -> list[EnphaseSensorDescription]:
-    out = []
-    for attr, name in _CONTACT_SETTINGS:
-        is_level = attr.startswith("soc_")
-        out.append(
-            EnphaseSensorDescription(
-                key=f"dry_contact_{contact_id}_{attr}",
-                name=name,
-                entity_category=EntityCategory.DIAGNOSTIC,
-                native_unit_of_measurement=PERCENTAGE if is_level else None,
-                value_fn=lambda d, a=attr: getattr(d.dry_contact_settings[contact_id], a),
-            )
-        )
-    return out
-
-
 # --- Installer settings: export limit and PCS (docs/FINDINGS.md) --------------------------------
 
 
@@ -744,13 +718,7 @@ async def async_setup_entry(
             child_device(IQ_MICROINVERTER, inverter.serial, rt.envoy_device_id),
             inverter.serial,
         )
-    for contact_id in slow.dry_contact_settings:
-        add(
-            rt.slow,
-            _contact_sensors(contact_id),
-            contact_device(hass, entry, contact_id),
-            rt.serial,
-        )
+    remove_read_only_contacts(hass, entry, "sensor")
 
     if rt.cloud is not None:
         add(rt.cloud, _CLOUD_SENSORS, envoy, rt.serial)

@@ -17,7 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import EnphaseConfigEntry
 from .coordinator import LiveFeed, SlowData
-from .dry_contact import contact_device
+from .dry_contact import remove_read_only_contacts
 from .entity import (
     IQ_BATTERY,
     IQ_SYSTEM_CONTROLLER,
@@ -92,15 +92,6 @@ def _controller(serial: str) -> list[EnphaseBinarySensorDescription]:
     return [
         _communicating(lambda d: by_serial(_inventory(d).system_controllers, serial).communicating)
     ]
-
-
-def _contact(contact_id: str) -> EnphaseBinarySensorDescription:
-    return EnphaseBinarySensorDescription(
-        key=f"dry_contact_{contact_id}",
-        # The device's name: the contact's own device.
-        name=None,
-        value_fn=lambda d: d.dry_contact_states[contact_id],
-    )
 
 
 # The Envoy's PCS offering names; one it adds later shows under its own name.
@@ -190,12 +181,7 @@ async def async_setup_entry(
             for o in slow.pcs.offerings
         ]
 
-    entities += [
-        EnphaseBinarySensor(
-            rt.slow, _contact(contact_id), contact_device(hass, entry, contact_id), rt.serial
-        )
-        for contact_id in slow.dry_contact_states
-    ]
+    remove_read_only_contacts(hass, entry, "binary_sensor")
 
     if rt.cloud is not None:
         entities += [EnphaseBinarySensor(rt.cloud, d, envoy, rt.serial) for d in _CLOUD]

@@ -59,7 +59,7 @@ renamed a device, check the old IDs in your own entity list.
 | `switch.enpower_<sc>_charge_from_grid` (`switch.envoy_<serial>_charge_from_grid` on a site without a System Controller) |
 | `switch.enpower_<sc>_grid_enabled` (only with the grid relay option on; see the README) |
 | `sensor.inverter_<inverter>` |
-| `switch.<contact>`, `select.<contact>_mode`, `_grid_action`, `_microgrid_action`, `_generator_action`, `number.<contact>_cutoff_battery_level`, `_restore_battery_level` (only with the dry-contact option on), where `<contact>` is the contact's load name, or its ID (such as `nc1`) |
+| `switch.<contact>`, `select.<contact>_mode`, `_grid_action`, `_microgrid_action`, `_generator_action`, `number.<contact>_cutoff_battery_level`, `_restore_battery_level` (changes need the dry-contact option), where `<contact>` is the contact's load name, or its ID (such as `nc1`) |
 
 Enphase Realtime's **Battery shutdown level** (the level at which the battery stops discharging)
 is new: core has no equivalent.
