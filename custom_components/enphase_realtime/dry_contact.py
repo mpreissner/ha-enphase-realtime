@@ -80,7 +80,7 @@ def dry_contact_controls(entry: EnphaseConfigEntry) -> list[str]:
 def remove_read_only_contacts(
     hass: HomeAssistant, entry: EnphaseConfigEntry, platform: str
 ) -> None:
-    """Drop the read-only contact entities that versions before 0.4 created; the controls
+    """Drop the read-only contact entities that versions before 0.3 created; the controls
     now show the same state."""
     registry = er.async_get(hass)
     prefix = f"{entry.runtime_data.serial}_dry_contact_"
