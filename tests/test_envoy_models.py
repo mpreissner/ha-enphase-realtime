@@ -254,14 +254,24 @@ def test_schedule_mode_without_keys() -> None:
 
 
 @pytest.mark.parametrize(
-    ("admin", "oper", "connected"),
-    [("closed", "closed", True), ("closed", "open", False), ("open", "open", False)],
+    ("admin", "oper", "connected", "settled"),
+    [
+        ("closed", "closed", True, True),
+        ("closed", "open", False, False),
+        ("open", "closed", True, False),
+        ("open", "open", False, True),
+        # What the reference site reported while off grid (FINDINGS 2026-10-01).
+        ("open", "open synchronizing", False, True),
+        ("open", "open synchronized", False, True),
+        ("closed", "open synchronized", False, False),
+    ],
 )
-def test_relay(admin: str, oper: str, connected: bool) -> None:
+def test_relay(admin: str, oper: str, connected: bool, settled: bool) -> None:
     data = load_json("ivp_ensemble_relay.json")
     data.update(mains_admin_state=admin, mains_oper_state=oper)
     relay = Relay.from_payload(data)
     assert relay.grid_connected is connected
+    assert relay.settled is settled
 
 
 # --- inventory, dry contacts, inverters ---------------------------------------------------------

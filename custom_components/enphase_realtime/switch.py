@@ -366,13 +366,13 @@ class GridRelaySwitch(ConfirmingControl[LiveFeed, bool], SwitchEntity):
         super()._handle_coordinator_update()
 
     def _local(self) -> bool | None:
-        """Confirmed only once the relay has actually moved, not just been told to: both
-        `mains_admin_state` and `mains_oper_state` must match."""
+        """Confirmed only once the relay has actually moved, not just been told to:
+        `mains_oper_state` must match `mains_admin_state` (Relay.settled)."""
         available, closed = self._value()
         if not available:
             return None
         relay = _relay(self.coordinator.data)
-        return closed if relay.oper_state == relay.admin_state else None
+        return closed if relay.settled else None
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self._async_set(True)
