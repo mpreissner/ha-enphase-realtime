@@ -136,6 +136,15 @@ Base `https://enlighten.enphaseenergy.com/service/batteryConfig/api/v1`.
 | Charge-from-grid on | `acceptDisclaimer` first, then `{"chargeFromGrid":true,"acceptedItcDisclaimer":true,"chargeBeginTime":120,"chargeEndTime":300,"chargeFromGridScheduleEnabled":false}` | Within 10 s: `cfg` true and charging at -2.7 to -3.9 kW |
 | Charge-from-grid off | `{"chargeFromGrid":false}` | Within 20 s: `cfg` false and storage about 0 W |
 | Reserve | `{"veryLowSoc":N}` (range 5–25 on this system) | Within about 20 s: `VLS_Limit` = N |
+| Storage mode | `{"profile":"self-consumption"}`, `"backup_only"` or `"cost_savings"` | Within about 10 s: `configured_backup_soc` and the scheduler mode change (verified 2026-10-01) |
+
+**Each profile keeps its own settings (2026-10-01).** No Envoy field reports the profile, so
+the integration confirms a profile change when the cloud reports it with nothing pending (within
+about 15–20 s). The cloud keeps a reserve and a charge-from-grid setting for each profile, and a
+profile write applies that profile's stored values along with it. On the reference site,
+switching from Full Backup (100%, charge from grid off) to Self-Consumption brought back 30% and
+charge from grid **on**. Turning charge from grid off while in Self-Consumption stored "off" for
+that profile. Full Backup kept its own settings throughout.
 
 ### Pending state
 
@@ -149,6 +158,4 @@ Enphase app shows this as "pending".
 
 ## Out of scope for now
 
-- Changing the storage mode or profile (Self-Consumption, Full Backup and so on). The endpoint
-  wasn't captured.
 - Grid-side voltage. No owner-accessible endpoint exposes it.

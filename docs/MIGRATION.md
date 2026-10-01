@@ -74,6 +74,5 @@ point to the lifetime sensors above.
 
 - **Energy today and last 7 days.** This integration doesn't create these. Use the Energy
   dashboard, or a `utility_meter` on the lifetime sensors.
-- **Storage mode** is read-only here; change it in the Enphase app.
 - **Grid enabled** is only created when you turn on the grid relay option. See the README's
   [Grid relay](../README.md#grid-relay) section before you do.

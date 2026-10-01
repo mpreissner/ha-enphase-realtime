@@ -165,8 +165,9 @@ class CloudControl[T](ConfirmingControl[FastData, T]):
         description: Any,
         device: DeviceInfo,
         unique_prefix: str,
+        timeout: timedelta = CONFIRM_TIMEOUT,
     ) -> None:
-        super().__init__(fast, description, device, unique_prefix)
+        super().__init__(fast, description, device, unique_prefix, timeout)
         self._cloud = cloud
 
     async def async_added_to_hass(self) -> None:

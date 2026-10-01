@@ -7,6 +7,7 @@ from datetime import timedelta
 import pytest
 from freezegun.api import FrozenDateTimeFactory
 from homeassistant.components.number import ATTR_VALUE, SERVICE_SET_VALUE
+from homeassistant.components.select import ATTR_OPTION, SERVICE_SELECT_OPTION
 from homeassistant.config_entries import SOURCE_REAUTH
 from homeassistant.const import (
     ATTR_ENTITY_ID,
@@ -15,6 +16,7 @@ from homeassistant.const import (
     STATE_OFF,
     STATE_ON,
     STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -328,3 +330,70 @@ async def test_backup_reserve_confirmed(
     state = hass.states.get(number)
     assert state is not None
     assert (state.state, state.attributes["confirmation"]) == ("32", "confirmed")
+
+
+async def _storage_mode(hass: HomeAssistant) -> tuple[str, str | None]:
+    entity_id = _entity_id(hass, "select", "storage_mode")
+    assert entity_id is not None
+    state = hass.states.get(entity_id)
+    assert state is not None
+    return state.state, state.attributes.get("confirmation")
+
+
+async def test_storage_mode_select(
+    hass: HomeAssistant,
+    fake: FakeEnphase,
+    config_entry: MockConfigEntry,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    await _setup(hass, config_entry)
+    entity_id = _entity_id(hass, "select", "storage_mode")
+    # On the System Controller, as in the core integration, so the entity ID matches.
+    assert entity_id is not None and entity_id.startswith("select.enpower_")
+    assert await _storage_mode(hass) == ("backup", None)
+
+    await hass.services.async_call(
+        "select",
+        SERVICE_SELECT_OPTION,
+        {ATTR_ENTITY_ID: entity_id, ATTR_OPTION: "self_consumption"},
+        blocking=True,
+    )
+    assert fake.writes == [("PUT", BATTERY_SETTINGS, {"profile": "self-consumption"})]
+    assert await _storage_mode(hass) == ("self_consumption", "pending")
+
+    # The cloud has the profile, but a gateway has yet to apply it.
+    fake.battery_settings_overrides = {
+        "profile": "self-consumption",
+        "requestedConfig": {"pendingGateways": ["gw"]},
+    }
+    freezer.tick(timedelta(seconds=15))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert await _storage_mode(hass) == ("self_consumption", "pending")
+
+    # Applied: the re-poll every 15 s picks it up, well before the 300 s cloud poll.
+    fake.battery_settings_overrides = {"profile": "self-consumption"}
+    freezer.tick(timedelta(seconds=15))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert await _storage_mode(hass) == ("self_consumption", "confirmed")
+
+
+async def test_storage_mode_outside_core_options(
+    hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
+) -> None:
+    fake.battery_settings_overrides = {"profile": "ai_optimisation"}
+    await _setup(hass, config_entry)
+    assert await _storage_mode(hass) == (STATE_UNKNOWN, None)
+
+
+async def test_old_storage_mode_sensor_removed(
+    hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
+) -> None:
+    config_entry.add_to_hass(hass)
+    er.async_get(hass).async_get_or_create(
+        "sensor", DOMAIN, f"{SERIAL}_storage_mode", config_entry=config_entry
+    )
+    assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    assert _entity_id(hass, "sensor", "storage_mode") is None

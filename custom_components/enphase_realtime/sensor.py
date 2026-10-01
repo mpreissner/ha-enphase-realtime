@@ -492,17 +492,6 @@ def _installer_sensors(data: SlowData) -> list[EnphaseSensorDescription]:
     return out
 
 
-# --- Cloud (5.3) --------------------------------------------------------------------------------
-
-_CLOUD_SENSORS = (
-    EnphaseSensorDescription(
-        key="storage_mode",
-        name="Storage mode",
-        value_fn=lambda s: s.profile,
-    ),
-)
-
-
 # --- Enphase overhead (docs/specs/enphase-overhead.md) ------------------------------------------
 
 OVERHEAD_POWER = "enphase_overhead_power"
@@ -720,8 +709,10 @@ async def async_setup_entry(
         )
     remove_read_only_contacts(hass, entry, "sensor")
 
-    if rt.cloud is not None:
-        add(rt.cloud, _CLOUD_SENSORS, envoy, rt.serial)
+    # Versions before 0.4 had a read-only storage mode sensor; the select replaces it.
+    registry = er.async_get(hass)
+    if entity_id := registry.async_get_entity_id("sensor", DOMAIN, f"{rt.serial}_storage_mode"):
+        registry.async_remove(entity_id)
 
     entities.extend(_overhead_entities(hass, entry, envoy))
     async_add_entities(entities)
