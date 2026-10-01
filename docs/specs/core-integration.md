@@ -17,8 +17,8 @@ Battery site with one integration that:
    is long enough for an IQ Battery to overload and trip. This matches what
    `enphase-envoy-mqtt-json` delivers today (it polls `livedata` about every 0.6 s plus the
    request time).
-2. **Controls locally what the Envoy accepts locally.** That covers the grid relay, and later
-   the dry contacts.
+2. **Controls locally what the Envoy accepts locally.** That covers the grid relay and the
+   dry contacts.
 3. **Controls through the Enlighten cloud what the Envoy ignores locally.** That covers the
    battery settings. Every cloud write is then **confirmed from local values**.
 
@@ -34,11 +34,6 @@ such.
 
 ### Non-goals (for now)
 
-- **Changing the storage mode or profile** (Self-Consumption, Full Backup, and so on). The
-  write endpoint hasn't been captured. The integration reads the mode but can't set it.
-- **Writing to dry contacts.** On the reference site they switch HVAC and dryer loads, and
-  nobody knows which contact is which. They are read-only until the user maps them.
-  Sections 5 and 10 cover this.
 - Configuring generators.
 - Supporting the legacy Envoy-S (firmware below 7) or envoys without an owner-token flow.
 - Getting the brand into home-assistant/brands.
@@ -324,20 +319,23 @@ from the device name. The model carries Enphase's current product name.
 | `Enpower <serial>` | IQ System Controller |
 | `Encharge <serial>`, one per battery | IQ Battery |
 | `Inverter <serial>`, one per microinverter, all disabled by default | IQ Microinverter |
+| The contact's load name (or ID), one per dry contact, linked to the System Controller | Dry contact relay |
 
 The Envoy device is registered at setup, before the platforms load, and the others link to it
 with `via_device_id`, its device registry ID.
 
 **Naming.** Where the core integration has the same entity, it gets the core's name and device,
 so the entity ID is the same and a move keeps its history without editing IDs
-(`docs/MIGRATION.md`). Grid status, the grid relay switch and the reserve number
-sit on the System Controller, as in core, and on the Envoy on a site without one. The
+(`docs/MIGRATION.md`). Grid status, the grid relay switch, charge from grid and the reserve number
+sit on the System Controller, as in core, and on the Envoy on a site without one. Each dry
+contact's entities sit on that contact's own device. The
 Enphase-Envoy-mqtt-json add-on has no fixed names (users define their own MQTT sensors), so
 there's nothing to match there. Entities core doesn't have get plain names: Grid, Load and PV
 power, Battery shutdown level (the Enphase app's term).
 
 **Unique IDs:** `<serial>_<key>`, where the key is usually the entity ID's suffix. The grid
-entities and the reserve number keep the Envoy's serial even on the System Controller device.
+entities, charge from grid, the reserve number and the dry contacts keep the Envoy's serial
+even on another device, so moving them between devices doesn't change entity IDs.
 
 Source key: **S** = stream, **R** = live (1 s), **F** = fast, **L** = slow, **C** = cloud.
 
@@ -407,7 +405,7 @@ aren't exposed in v1.
 | State of health | F `secctrl.ENC_agg_soh` | – (new) |
 | Per-battery: SoC, temperature, max cell temperature, communicating, DC switch, last reported, status | L `ensemble/inventory` ENCHARGE | `encharge_*` |
 | System Controller: communicating, temperature, last reported | L `ensemble/inventory` ENPOWER | `enpower_*` |
-| Storage mode (read-only sensor) | C `profile` | `storage_mode` select (writable in core; read-only here) |
+| Storage mode select (on the System Controller) | C `profile` | `storage_mode` select (same options: backup, self_consumption, savings) |
 | Pending cloud change (binary, with `requestedConfig` as attributes) | C `requestedConfig.pendingGateways` non-empty | – (new) |
 
 **Temperature units.** Each device reports temperature in its own unit, and the sensor declares
@@ -433,17 +431,12 @@ nothing is pending, and it isn't a parse error.
 For each micro: last-report watts and last-report time, from L `/api/v1/production/inverters`.
 Parity with the core `inverter_*` entities. Disabled by default.
 
-### 5.6 Dry contacts (read-only in v1)
+### 5.6 Dry contacts
 
-For each contact:
-
-- a binary sensor for relay state (from `ensemble/dry_contacts`)
-- diagnostic sensors for `mode`, `grid_action`, `micro_grid_action`, `gen_action`, `soc_low`
-  and `soc_high` (from `ss/dry_contact_settings`)
-
-These replace the core's `relay_*_status` switches and the `*_action`, `mode`,
-`cutoff_battery_level` and `restore_battery_level` controls. **They are deliberately not
-writable** (see 1).
+Each contact gets the core's controls: a switch for the relay (from `ensemble/dry_contacts`),
+selects for `mode` and the three actions, and numbers for the cutoff and restore levels (from
+`ss/dry_contact_settings`). They always show state; writes need the option **Allow dry-contact
+control** (off by default). The design is in [dry-contacts.md](dry-contacts.md).
 
 ## 6. Control
 
@@ -473,6 +466,7 @@ A failed write (anything other than 200, or an XSRF or auth error) raises
 |---|---|---|---|
 | Charge from grid switch | On: `POST acceptDisclaimer {"disclaimer-type":"itc"}`, then `PUT {"chargeFromGrid":true,"acceptedItcDisclaimer":true,"chargeBeginTime":…,"chargeEndTime":…,"chargeFromGridScheduleEnabled":false}` (keeps the current begin and end times from the last GET). Off: `PUT {"chargeFromGrid":false}` | `sc/sched['Charge From Grid Allowed']` | **Yes**, confirmed within 10–20 s |
 | Battery shutdown level number | `PUT {"veryLowSoc":N}`; min and max from cloud `veryLowSocMin` / `veryLowSocMax` (5–25) | `secctrl.VLS_Limit == N` | **Yes**, confirmed within about 20 s |
+| Storage mode select (on the System Controller) | `PUT {"profile":…}` (`backup_only`, `self-consumption`, `cost_savings`) | No Envoy field; confirmed when the cloud reports the profile with no `pendingGateways`, re-polling every 15 s (5 min timeout) | **Yes**, 2026-10-01, about 15–20 s. The profile brings its own stored reserve and charge-from-grid settings (FINDINGS) |
 | Reserve battery level number (on the System Controller) | `PUT {"batteryBackupPercentage":N}`; min and max from the cloud | `secctrl.configured_backup_soc == N` | **Write path yes** (same PUT as the shutdown level); **local confirmation field not yet (S3)**. Built; the entity is unavailable when `profile == backup_only`, where the cloud pins it at 100 |
 
 Battery maintenance (docs/specs/battery-maintenance.md) writes the same charge-from-grid
@@ -591,7 +585,7 @@ Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`. Status
 | S3 | Does `batteryBackupPercentage` show locally as `secctrl.configured_backup_soc`? (The PUT itself is proven by the shutdown-level test.) | One change in Self-Consumption, e.g. 30 → 32 and back, with the user watching. If confirmation fails but the change took effect, the confirm field is wrong |
 | S4 | Does `POST /ivp/ensemble/relay` work with an owner token on D8.3.6086? | Only with the user present, battery SoC above 50%, and an immediate restore |
 | S5 | Do `/ivp/meters/readings` and `reports` lifetime counters match the core's lifetime values, and are they monotonic? Which storage field is charged and which discharged? (Reference site: `actEnergyDlvd` 626 Wh, `actEnergyRcvd` 13,560 Wh, on a new battery that spent the test day charging from grid, which suggests `Rcvd` = charged) | **Settled (25 September 2026):** all six lifetime counters match the core integration's on the reference site (production 742.84 kWh, consumption 1,530.2, import 1,158.6, export 371.25, battery charged 15.39, discharged 0.63). `actEnergyRcvd` is charged, as core has it. Production + import − export equals consumption exactly, and the counters only rose between restarts |
-| S6 | Dry-contact mapping (which contact switches the AC, which the dryer) | User task. Writes stay out of scope until it's done |
+| S6 | Dry-contact mapping (which contact switches the AC, which the dryer) | **Settled (28 September 2026):** NC1 switches the air conditioner. Opening it from the new switch cut the AC's ~50 W draw, and closing it restored it; both writes were confirmed within 4 s. The cutoff and restore level writes work too. NC2 is believed to be the dryer, not yet tested. Further live writes still only with the user present |
 | S7 | Is it worth adding the `mqttSignedUrl` AWS IoT stream as a push source for cloud state (to replace the 300 s poll)? | Revisit after phase 3 |
 | S8 | Outside the US: do the same Enlighten and Entrez hosts work, which charge-from-grid disclaimer type (if any) is needed, and what do `showChargeFromGrid` and `restrictCfg` look like? | Needs a non-US tester. Until then, the conservative gating in 3.3 applies |
 | S9 | What do single-phase and three-phase sites send for `phaseMode`, `phase_count`, `is_split_phase`, stream frames and `livedata` per-phase fields? What temperature unit do other System Controller models report? | Diagnostics dumps from users (3.3). Add each as a fixture under `tests/fixtures/<layout>/` |

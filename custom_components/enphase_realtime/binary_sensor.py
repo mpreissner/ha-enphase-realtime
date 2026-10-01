@@ -17,6 +17,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import EnphaseConfigEntry
 from .coordinator import LiveFeed, SlowData
+from .dry_contact import remove_read_only_contacts
 from .entity import (
     IQ_BATTERY,
     IQ_SYSTEM_CONTROLLER,
@@ -93,11 +94,27 @@ def _controller(serial: str) -> list[EnphaseBinarySensorDescription]:
     ]
 
 
-def _contact(contact_id: str, label: str) -> EnphaseBinarySensorDescription:
+# The Envoy's PCS offering names; one it adds later shows under its own name.
+_PCS_OFFERINGS = {
+    "PVOversubscription": "PV oversubscription",
+    "EnchargeOversubscription": "Battery oversubscription",
+    "EVSEMBTAvoidance": "EV charger main breaker trip avoidance",
+    "MPUAvoidance": "Main panel upgrade avoidance",
+    "BusbarPCS": "Busbar PCS",
+}
+
+
+def _pcs_offering(offering: str) -> EnphaseBinarySensorDescription:
+    def value(d: SlowData) -> bool:
+        if d.pcs is None:
+            raise KeyError("PCS settings")
+        return d.pcs.offerings[offering]
+
     return EnphaseBinarySensorDescription(
-        key=f"dry_contact_{contact_id}",
-        name=label,
-        value_fn=lambda d: d.dry_contact_states[contact_id],
+        key=f"pcs_{offering.lower()}",
+        name=f"PCS {_PCS_OFFERINGS.get(offering, offering)}",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=value,
     )
 
 
@@ -145,7 +162,6 @@ async def async_setup_entry(
             EnphaseBinarySensor(rt.live, d, relay_device, rt.serial) for d in _ENPOWER_LIVE
         ]
 
-    contacts_device = envoy
     if slow.inventory is not None:
         for battery in slow.inventory.batteries:
             device = child_device(IQ_BATTERY, battery.serial, rt.envoy_device_id)
@@ -154,19 +170,18 @@ async def async_setup_entry(
                 for d in _battery(battery.serial)
             ]
         for controller in slow.inventory.system_controllers:
-            contacts_device = child_device(
-                IQ_SYSTEM_CONTROLLER, controller.serial, rt.envoy_device_id
-            )
+            device = child_device(IQ_SYSTEM_CONTROLLER, controller.serial, rt.envoy_device_id)
             entities += [
-                EnphaseBinarySensor(rt.slow, d, contacts_device, controller.serial)
+                EnphaseBinarySensor(rt.slow, d, device, controller.serial)
                 for d in _controller(controller.serial)
             ]
-    for contact_id in slow.dry_contact_states:
-        settings = slow.dry_contact_settings.get(contact_id)
-        label = settings.load_name if settings and settings.load_name else contact_id
-        entities.append(
-            EnphaseBinarySensor(rt.slow, _contact(contact_id, label), contacts_device, rt.serial)
-        )
+    if slow.pcs is not None:
+        entities += [
+            EnphaseBinarySensor(rt.slow, _pcs_offering(o), envoy, rt.serial)
+            for o in slow.pcs.offerings
+        ]
+
+    remove_read_only_contacts(hass, entry, "binary_sensor")
 
     if rt.cloud is not None:
         entities += [EnphaseBinarySensor(rt.cloud, d, envoy, rt.serial) for d in _CLOUD]

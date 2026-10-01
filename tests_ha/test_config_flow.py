@@ -12,6 +12,7 @@ from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.enphase_realtime.const import (
+    CONF_ALLOW_DRY_CONTACTS,
     CONF_ALLOW_GRID_RELAY,
     CONF_CLOUD_INTERVAL,
     CONF_COUNTRY,
@@ -206,6 +207,7 @@ async def test_options(hass: HomeAssistant, config_entry: MockConfigEntry) -> No
             CONF_COUNTRY: "AU",
             CONF_TIME_ZONE: "Australia/Sydney",
             CONF_ALLOW_GRID_RELAY: True,
+            CONF_ALLOW_DRY_CONTACTS: False,
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -218,6 +220,7 @@ async def test_options(hass: HomeAssistant, config_entry: MockConfigEntry) -> No
         CONF_COUNTRY: "AU",
         CONF_TIME_ZONE: "Australia/Sydney",
         CONF_ALLOW_GRID_RELAY: True,
+        CONF_ALLOW_DRY_CONTACTS: False,
     }
 
 
@@ -230,3 +233,4 @@ async def test_options_without_a_system_controller_have_no_relay_option(
     entry.add_to_hass(hass)
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert CONF_ALLOW_GRID_RELAY not in result["data_schema"].schema
+    assert CONF_ALLOW_DRY_CONTACTS not in result["data_schema"].schema

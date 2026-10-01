@@ -51,14 +51,15 @@ renamed a device, check the old IDs in your own entity list.
 | `sensor.envoy_<serial>_reserve_battery_energy` |
 | `sensor.envoy_<serial>_reserve_battery_level` |
 | `sensor.envoy_<serial>_voltage_net_consumption_ct` and the other CT readings |
-| `switch.envoy_<serial>_charge_from_grid` |
 | `sensor.encharge_<battery>_battery` |
 | `sensor.encharge_<battery>_temperature` |
 | `sensor.enpower_<sc>_temperature` |
 | `binary_sensor.enpower_<sc>_grid_status` |
 | `number.enpower_<sc>_reserve_battery_level` |
+| `switch.enpower_<sc>_charge_from_grid` (`switch.envoy_<serial>_charge_from_grid` on a site without a System Controller) |
 | `switch.enpower_<sc>_grid_enabled` (only with the grid relay option on; see the README) |
 | `sensor.inverter_<inverter>` |
+| `switch.<contact>`, `select.<contact>_mode`, `_grid_action`, `_microgrid_action`, `_generator_action`, `number.<contact>_cutoff_battery_level`, `_restore_battery_level` (changes need the dry-contact option), where `<contact>` is the contact's load name, or its ID (such as `nc1`) |
 
 Enphase Realtime's **Battery shutdown level** (the level at which the battery stops discharging)
 is new: core has no equivalent.
@@ -73,6 +74,5 @@ point to the lifetime sensors above.
 
 - **Energy today and last 7 days.** This integration doesn't create these. Use the Energy
   dashboard, or a `utility_meter` on the lifetime sensors.
-- **Storage mode** is read-only here; change it in the Enphase app.
 - **Grid enabled** is only created when you turn on the grid relay option. See the README's
   [Grid relay](../README.md#grid-relay) section before you do.

@@ -15,11 +15,13 @@ from envoy_client.models import (
     DryContactSettings,
     EnvoyInfo,
     EnvoyParseError,
+    ExportLimit,
     Inventory,
     Inverter,
     LifetimeEnergy,
     LiveData,
     Meter,
+    PcsSettings,
     PhaseLayout,
     Relay,
     Schedule,
@@ -311,6 +313,41 @@ def test_dry_contacts() -> None:
     assert set(settings) == set(states)
     assert settings["NC1"].mode == "manual"
     assert (settings["NC1"].soc_low, settings["NC1"].soc_high) == (30.0, 40.0)
+    # Kept whole for writes, strings and all (docs/specs/dry-contacts.md 2).
+    raw = load_json("ivp_ss_dry_contact_settings.json")["dry_contacts"][0]
+    assert settings["NC1"].raw == raw
+    assert settings["NC1"].raw["override"] == "false"
+
+
+def test_export_limit() -> None:
+    pel = ExportLimit.from_payload(load_json("ivp_ss_pel_settings.json"))
+    assert (pel.enabled, pel.soft, pel.hard) == (True, True, False)
+    assert pel.mode == "soft"
+    assert pel.limit == 0.0
+    assert pel.limit_type == "Aggregate"
+    assert not pel.percent
+    # SYNTHETIC: other combinations.
+    assert ExportLimit.from_payload({"PEL": False, "Soft_PEL": True}).mode == "off"
+    assert ExportLimit.from_payload({"PEL": True, "Hard_PEL": True}).mode == "hard"
+    both = {"PEL": True, "Hard_PEL": True, "Soft_PEL": True}
+    assert ExportLimit.from_payload(both).mode == "soft_and_hard"
+    with pytest.raises(EnvoyParseError):
+        ExportLimit.from_payload({})
+
+
+def test_pcs_settings() -> None:
+    pcs = PcsSettings.from_payload(load_json("ivp_ss_pcs_settings.json"))
+    assert pcs.offerings == {
+        "PVOversubscription": False,
+        "EnchargeOversubscription": False,
+        "EVSEMBTAvoidance": False,
+        "MPUAvoidance": True,
+        "BusbarPCS": False,
+    }
+    assert (pcs.main_breaker, pcs.main_busbar, pcs.der_breaker) == (200.0, 200.0, 40.0)
+    assert pcs.consumption_meter_location == "Between_Mains_Supply_and_Main_Load_Panel"
+    with pytest.raises(EnvoyParseError):
+        PcsSettings.from_payload({"mainCircuitBreaker": 200.0})
 
 
 def test_inverters() -> None:

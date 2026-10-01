@@ -64,6 +64,8 @@ ENVOY_FIXTURES = {
     "/ivp/ensemble/inventory": "ivp_ensemble_inventory.json",
     "/ivp/ss/dry_contact_settings": "ivp_ss_dry_contact_settings.json",
     "/ivp/ensemble/dry_contacts": "ivp_ensemble_dry_contacts.json",
+    "/ivp/ss/pel_settings": "ivp_ss_pel_settings.json",
+    "/ivp/ss/pcs_settings": "ivp_ss_pcs_settings.json",
     "/api/v1/production/inverters": "api_v1_production_inverters.json",
 }
 

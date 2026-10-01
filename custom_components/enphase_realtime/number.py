@@ -1,6 +1,7 @@
 """Battery shutdown level (`veryLowSoc`) and reserve battery level (`batteryBackupPercentage`)
 numbers (spec 6.2). The reserve's local confirmation is still to be checked live (spike S3).
-Also battery maintenance's two levels (docs/specs/battery-maintenance.md)."""
+Also battery maintenance's two levels (docs/specs/battery-maintenance.md) and the dry contacts'
+cutoff and restore levels (docs/specs/dry-contacts.md)."""
 
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import EnphaseConfigEntry
 from .const import DOMAIN, FULL_BACKUP
 from .control import CloudControl, charge_from_grid_itc
+from .dry_contact import DryContactControl, contact_device, dry_contact_controls
 from .enlighten_client.battery import BatteryConfigClient
 from .entity import controller_or_envoy, envoy_device
 from .maintenance import MaintenanceSettings
@@ -57,7 +59,8 @@ BACKUP_RESERVE = EnphaseNumberDescription(
     icon="mdi:battery-lock",
     native_unit_of_measurement=PERCENTAGE,
     native_step=1,
-    mode=NumberMode.BOX,
+    # A slider, as in the core integration.
+    mode=NumberMode.SLIDER,
     value_fn=lambda d: d.secctrl.configured_backup_soc,
 )
 
@@ -202,12 +205,82 @@ class MaintenanceLevelNumber(RestoreNumber):
             self._settings.stop = level
 
 
+# (Envoy field, name suffix, icon)
+_CONTACT_LEVELS = (
+    ("soc_low", "Cutoff battery level", "mdi:battery-arrow-down-outline"),
+    ("soc_high", "Restore battery level", "mdi:battery-arrow-up-outline"),
+)
+
+
+def _contact_levels(contact_id: str) -> list[EnphaseNumberDescription]:
+    return [
+        EnphaseNumberDescription(
+            key=f"dry_contact_{contact_id}_{field}",
+            name=name,
+            icon=icon,
+            native_unit_of_measurement=PERCENTAGE,
+            native_min_value=0,
+            native_max_value=100,
+            native_step=1,
+            mode=NumberMode.BOX,
+            entity_category=EntityCategory.CONFIG,
+            value_fn=lambda d, f=field: _level(getattr(d.dry_contact_settings[contact_id], f)),
+        )
+        for field, name, icon in _CONTACT_LEVELS
+    ]
+
+
+def _level(value: float | None) -> int | None:
+    return None if value is None else round(value)
+
+
+class DryContactLevelNumber(DryContactControl[int], NumberEntity):
+    """The contact's cutoff (`soc_low`) or restore (`soc_high`) battery level. The cutoff must
+    stay below the restore level."""
+
+    @property
+    def native_value(self) -> int | None:
+        return self._shown()
+
+    async def async_set_native_value(self, value: float) -> None:
+        self._check_allowed()
+        level = round(value)
+        field = self.entity_description.key.removeprefix(f"dry_contact_{self._contact_id}_")
+        other = self.coordinator.dry_contact_setting(
+            self._contact_id, "soc_high" if field == "soc_low" else "soc_low"
+        )
+        if other is not None:
+            low, high = (level, other) if field == "soc_low" else (other, level)
+            if low >= high:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="dry_contact_levels_invalid",
+                    translation_placeholders={"low": str(_level(low)), "high": str(_level(high))},
+                )
+
+        async def write() -> None:
+            # The Envoy reports the levels as floats, so they go back as floats.
+            await self.coordinator.write_dry_contact_settings(
+                self._contact_id, {field: float(level)}
+            )
+
+        await self._async_write(level, write)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: EnphaseConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     rt = entry.runtime_data
+    if contacts := dry_contact_controls(entry):
+        async_add_entities(
+            DryContactLevelNumber(
+                rt.slow, d, contact_device(hass, entry, contact_id), rt.serial, contact_id
+            )
+            for contact_id in contacts
+            for d in _contact_levels(contact_id)
+        )
     if rt.cloud is None or rt.fast is None:
         return
     envoy = envoy_device(rt.serial, rt.firmware)

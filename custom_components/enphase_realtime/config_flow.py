@@ -31,6 +31,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    CONF_ALLOW_DRY_CONTACTS,
     CONF_ALLOW_GRID_RELAY,
     CONF_BACKUP_LOAD_ENTITY,
     CONF_CLOUD_INTERVAL,
@@ -47,6 +48,7 @@ from .const import (
     CONF_STREAM_INTERVAL,
     CONF_TIME_ZONE,
     CONF_TOKEN,
+    DEFAULT_ALLOW_DRY_CONTACTS,
     DEFAULT_ALLOW_GRID_RELAY,
     DEFAULT_CLOUD_INTERVAL,
     DEFAULT_ENABLE_STREAM,
@@ -482,6 +484,7 @@ class EnphaseRealtimeOptionsFlow(OptionsFlow):
         # Only a System Controller has a grid relay to switch (spec 6.3).
         if self.config_entry.data.get(CONF_HAS_ENPOWER):
             fields[vol.Required(CONF_ALLOW_GRID_RELAY)] = bool
+            fields[vol.Required(CONF_ALLOW_DRY_CONTACTS)] = bool
         # Left empty, there are no overhead entities (docs/specs/enphase-overhead.md).
         fields[vol.Optional(CONF_BACKUP_LOAD_ENTITY)] = EntitySelector(
             EntitySelectorConfig(domain="sensor", device_class=SensorDeviceClass.POWER)
@@ -502,6 +505,9 @@ class EnphaseRealtimeOptionsFlow(OptionsFlow):
                     CONF_TIME_ZONE: options.get(CONF_TIME_ZONE, self.hass.config.time_zone),
                     CONF_ALLOW_GRID_RELAY: options.get(
                         CONF_ALLOW_GRID_RELAY, DEFAULT_ALLOW_GRID_RELAY
+                    ),
+                    CONF_ALLOW_DRY_CONTACTS: options.get(
+                        CONF_ALLOW_DRY_CONTACTS, DEFAULT_ALLOW_DRY_CONTACTS
                     ),
                     CONF_BACKUP_LOAD_ENTITY: options.get(CONF_BACKUP_LOAD_ENTITY),
                 },

@@ -1,0 +1,22 @@
+{
+  "pcsOffering": {
+    "PVOversubscription": false,
+    "EnchargeOversubscription": false,
+    "EVSEMBTAvoidance": false,
+    "MPUAvoidance": true,
+    "BusbarPCS": false
+  },
+  "mainCircuitBreaker": 200.0,
+  "mainPanelBusbar": 200.0,
+  "mainPanelDERBreaker": 40.0,
+  "pvBreaker": 0.0,
+  "enchargeBreaker": 0.0,
+  "consumptionMeterLocation": "Between_Mains_Supply_and_Main_Load_Panel",
+  "override": false,
+  "max_back_feed": 0.0,
+  "der3Breaker": 0.0,
+  "mp_debounce_timeout": 10000.0,
+  "der_debounce_timeout": 10000.0,
+  "offset_debounce_ms": 5000.0,
+  "relay_action": "open"
+}

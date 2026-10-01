@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
+from collections.abc import Awaitable
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
@@ -15,6 +16,7 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from .confirm import DRY_CONTACT_CONFIRM_TIMEOUT
 from .const import (
     CONF_PHASE_LAYOUT,
     DOMAIN,
@@ -29,15 +31,23 @@ from .const import (
 from .credentials import TokenKeeper, translate_errors
 from .enlighten_client.battery import BatteryConfigClient
 from .enlighten_client.models import BatterySettings, SiteSettings
-from .envoy_client.errors import EnvoyAuthError, EnvoyError, EnvoyStreamUnavailable
+from .envoy_client.errors import (
+    EnvoyAuthError,
+    EnvoyConnectionError,
+    EnvoyError,
+    EnvoyParseError,
+    EnvoyStreamUnavailable,
+)
 from .envoy_client.local import EnvoyClient
 from .envoy_client.models import (
     DryContactSettings,
+    ExportLimit,
     Inventory,
     Inverter,
     LifetimeEnergy,
     LiveData,
     Meter,
+    PcsSettings,
     PhaseLayout,
     Relay,
     Schedule,
@@ -202,6 +212,15 @@ class FastCoordinator(DataUpdateCoordinator[FastData]):
 # --- Slow ---------------------------------------------------------------------------------------
 
 
+async def _optional[T](read: Awaitable[T]) -> T | None:
+    """A display-only read that mustn't fail the poll: older firmware may not serve it."""
+    try:
+        return await read
+    except (EnvoyConnectionError, EnvoyParseError) as err:
+        _LOGGER.debug("Skipping an optional read: %s", err)
+        return None
+
+
 @dataclass(frozen=True, slots=True)
 class SlowData:
     meters: list[Meter]
@@ -210,6 +229,9 @@ class SlowData:
     dry_contact_settings: dict[str, DryContactSettings]
     dry_contact_states: dict[str, bool]
     inverters: list[Inverter]
+    # Installer settings, read for display only. None where the Envoy doesn't serve them.
+    export_limit: ExportLimit | None = None
+    pcs: PcsSettings | None = None
 
 
 class SlowCoordinator(DataUpdateCoordinator[SlowData]):
@@ -230,6 +252,53 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
         self._hw = hardware
         self._tokens = tokens
         self._layout = PhaseLayout(entry.data[CONF_PHASE_LAYOUT])
+        # Per contact, settings fields written but not yet reported back: field -> (value, when
+        # written). Later writes lay them over the Envoy's object (docs/specs/dry-contacts.md 5).
+        self._written: dict[str, dict[str, tuple[Any, float]]] = {}
+
+    async def refresh_dry_contacts(self) -> None:
+        """Re-read just the dry contacts, for a control waiting on a write. Raises the client's
+        `EnvoyError`; the next slow poll deals with a lasting failure."""
+        contacts, states = await asyncio.gather(
+            self.client.dry_contact_settings(), self.client.dry_contact_states()
+        )
+        self._forget_reported(contacts)
+        self.async_set_updated_data(
+            replace(self.data, dry_contact_settings=contacts, dry_contact_states=states)
+        )
+
+    async def write_dry_contact_settings(self, contact_id: str, changes: dict[str, Any]) -> None:
+        """Send the contact's full object with `changes` (Envoy field names) replaced."""
+        # A write that timed out mustn't ride along before the next poll prunes it.
+        self._forget_reported(self.data.dry_contact_settings)
+        written = self._written.setdefault(contact_id, {})
+        body = {
+            **self.data.dry_contact_settings[contact_id].raw,
+            **{key: value for key, (value, _) in written.items()},
+            **changes,
+        }
+        await self.client.set_dry_contact_settings(body)
+        now = time.monotonic()
+        written.update({key: (value, now) for key, value in changes.items()})
+
+    def dry_contact_setting(self, contact_id: str, key: str) -> Any:
+        """A settings field as the next write would send it: written, or else reported."""
+        written = self._written.get(contact_id, {})
+        if key in written:
+            return written[key][0]
+        return self.data.dry_contact_settings[contact_id].raw.get(key)
+
+    def _forget_reported(self, contacts: dict[str, DryContactSettings]) -> None:
+        """Drop written fields the Envoy now reports, or that it never took up."""
+        expired = time.monotonic() - DRY_CONTACT_CONFIRM_TIMEOUT.total_seconds()
+        for contact_id, written in self._written.items():
+            raw = contacts[contact_id].raw if contact_id in contacts else {}
+            for key in [
+                key
+                for key, (value, when) in written.items()
+                if raw.get(key) == value or when < expired
+            ]:
+                del written[key]
 
     async def _async_update_data(self) -> SlowData:
         c, hw = self.client, self._hw
@@ -252,6 +321,8 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
                 contacts,
                 states,
                 inverters,
+                export_limit,
+                pcs,
             ) = await asyncio.gather(
                 c.meters(),
                 c.meter_readings(),
@@ -260,10 +331,13 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
                 c.dry_contact_settings() if hw.has_enpower else empty(),
                 c.dry_contact_states() if hw.has_enpower else empty(),
                 c.inverters(),
+                _optional(c.export_limit()),
+                _optional(c.pcs_settings()),
             )
             energy = LifetimeEnergy.from_payloads(meters, readings, reports)
         self._check_layout(meters)
-        return SlowData(meters, energy, inventory, contacts, states, inverters)
+        self._forget_reported(contacts)
+        return SlowData(meters, energy, inventory, contacts, states, inverters, export_limit, pcs)
 
     def _check_layout(self, meters: list[Meter]) -> None:
         """An installer changing the CTs needs a reload, not entities rebuilt in place."""

@@ -42,6 +42,7 @@ from .const import (
     PHASE_NAMES,
 )
 from .coordinator import FastData, LiveCoordinator, LiveFeed, SlowData
+from .dry_contact import remove_read_only_contacts
 from .entity import (
     IQ_BATTERY,
     IQ_MICROINVERTER,
@@ -430,41 +431,65 @@ def _inverter_sensors(serial: str) -> list[EnphaseSensorDescription]:
     ]
 
 
-_CONTACT_SETTINGS = (
-    ("mode", "mode"),
-    ("grid_action", "grid action"),
-    ("micro_grid_action", "microgrid action"),
-    ("gen_action", "generator action"),
-    ("soc_low", "cutoff battery level"),
-    ("soc_high", "restore battery level"),
-)
+# --- Installer settings: export limit and PCS (docs/FINDINGS.md) --------------------------------
 
 
-def _contact_sensors(contact_id: str, label: str) -> list[EnphaseSensorDescription]:
-    out = []
-    for attr, name in _CONTACT_SETTINGS:
-        is_level = attr.startswith("soc_")
-        out.append(
-            EnphaseSensorDescription(
-                key=f"dry_contact_{contact_id}_{attr}",
-                name=f"{label} {name}",
-                entity_category=EntityCategory.DIAGNOSTIC,
-                native_unit_of_measurement=PERCENTAGE if is_level else None,
-                value_fn=lambda d, a=attr: getattr(d.dry_contact_settings[contact_id], a),
-            )
+def _installer_sensors(data: SlowData) -> list[EnphaseSensorDescription]:
+    def pel(d: SlowData):
+        return _required(d.export_limit, "export limit")
+
+    def pcs(d: SlowData):
+        return _required(d.pcs, "PCS settings")
+
+    def rating(key: str, name: str, value_fn: Callable[[SlowData], Any]):
+        return EnphaseSensorDescription(
+            key=key,
+            name=name,
+            device_class=SensorDeviceClass.CURRENT,
+            native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+            suggested_display_precision=0,
+            entity_category=EntityCategory.DIAGNOSTIC,
+            value_fn=value_fn,
         )
+
+    out = []
+    if data.export_limit is not None:
+        out += [
+            EnphaseSensorDescription(
+                key="export_limit_mode",
+                name="Export limit mode",
+                device_class=SensorDeviceClass.ENUM,
+                options=["off", "soft", "hard", "soft_and_hard", "on"],
+                entity_category=EntityCategory.DIAGNOSTIC,
+                value_fn=lambda d: pel(d).mode,
+            ),
+            # The unit isn't confirmed (models.ExportLimit), so none is claimed.
+            EnphaseSensorDescription(
+                key="export_limit",
+                name="Export limit",
+                entity_category=EntityCategory.DIAGNOSTIC,
+                value_fn=lambda d: pel(d).limit,
+            ),
+            EnphaseSensorDescription(
+                key="export_limit_type",
+                name="Export limit type",
+                entity_category=EntityCategory.DIAGNOSTIC,
+                value_fn=lambda d: pel(d).limit_type,
+            ),
+        ]
+    if data.pcs is not None:
+        out += [
+            rating("main_breaker_rating", "Main breaker rating", lambda d: pcs(d).main_breaker),
+            rating("main_busbar_rating", "Main busbar rating", lambda d: pcs(d).main_busbar),
+            rating("der_breaker_rating", "DER breaker rating", lambda d: pcs(d).der_breaker),
+            EnphaseSensorDescription(
+                key="consumption_meter_location",
+                name="Consumption meter location",
+                entity_category=EntityCategory.DIAGNOSTIC,
+                value_fn=lambda d: pcs(d).consumption_meter_location,
+            ),
+        ]
     return out
-
-
-# --- Cloud (5.3) --------------------------------------------------------------------------------
-
-_CLOUD_SENSORS = (
-    EnphaseSensorDescription(
-        key="storage_mode",
-        name="Storage mode",
-        value_fn=lambda s: s.profile,
-    ),
-)
 
 
 # --- Enphase overhead (docs/specs/enphase-overhead.md) ------------------------------------------
@@ -663,7 +688,7 @@ async def async_setup_entry(
 
     slow = rt.slow.data
     add(rt.slow, _lifetime_sensors(slow), envoy, rt.serial)
-    contacts_device = envoy
+    add(rt.slow, _installer_sensors(slow), envoy, rt.serial)
     if slow.inventory is not None:
         for battery in slow.inventory.batteries:
             add(
@@ -674,7 +699,6 @@ async def async_setup_entry(
             )
         for controller in slow.inventory.system_controllers:
             device = child_device(IQ_SYSTEM_CONTROLLER, controller.serial, rt.envoy_device_id)
-            contacts_device = device
             add(rt.slow, _controller_sensors(controller.serial), device, controller.serial)
     for inverter in slow.inverters:
         add(
@@ -683,16 +707,12 @@ async def async_setup_entry(
             child_device(IQ_MICROINVERTER, inverter.serial, rt.envoy_device_id),
             inverter.serial,
         )
-    for contact_id, settings in slow.dry_contact_settings.items():
-        add(
-            rt.slow,
-            _contact_sensors(contact_id, settings.load_name or contact_id),
-            contacts_device,
-            rt.serial,
-        )
+    remove_read_only_contacts(hass, entry, "sensor")
 
-    if rt.cloud is not None:
-        add(rt.cloud, _CLOUD_SENSORS, envoy, rt.serial)
+    # Versions before 0.3 had a read-only storage mode sensor; the select replaces it.
+    registry = er.async_get(hass)
+    if entity_id := registry.async_get_entity_id("sensor", DOMAIN, f"{rt.serial}_storage_mode"):
+        registry.async_remove(entity_id)
 
     entities.extend(_overhead_entities(hass, entry, envoy))
     async_add_entities(entities)
