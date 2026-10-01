@@ -42,6 +42,9 @@ DEFAULT_ALLOW_GRID_RELAY = False
 DEFAULT_ALLOW_DRY_CONTACTS = False
 
 SLOW_INTERVAL = timedelta(seconds=60)
+# Dry-contact states are read this often, to catch a contact opening when the grid goes
+# (docs/specs/dry-contacts.md 4). Their settings stay on the 60 s poll.
+DRY_CONTACT_POLL = timedelta(seconds=2)
 # Stream entities go unavailable after this long without a frame (spec 3.1).
 STREAM_STALE_AFTER = timedelta(seconds=30)
 # How often the stream is checked for going stale.

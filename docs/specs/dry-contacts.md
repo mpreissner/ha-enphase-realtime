@@ -64,6 +64,12 @@ Each contact gets the following entities, on the contact's own device (see **Dev
   Envoy on a site without one). A fresh install gets core's entity IDs, such as `switch.nc1`
   and `select.nc1_mode`. Unique IDs didn't change when the entities moved off the System
   Controller, so an existing install keeps its entity IDs.
+- **Polling:** the switches' states (`ensemble/dry_contacts`) are read every 2 s
+  (`DRY_CONTACT_POLL`), so a contact opening when the grid goes shows up promptly. Settings
+  stay on the SlowCoordinator's 60 s poll. A tick is skipped while the previous read is still
+  out, and a failed read keeps the last states (logged at debug). The result goes into the
+  coordinator's data without `async_set_updated_data`, which would push the 60 s poll back on
+  every read. Each change in a contact's state is logged at debug.
 - **Levels:** the cutoff level must stay below the restore level. A write that breaks this is
   refused with a validation error, and nothing is sent.
 
@@ -77,8 +83,8 @@ SlowCoordinator's data.
 2. **Send:** the POST goes out. If the Envoy refuses it, the service call raises
    `dry_contact_write_failed` and the entity's state doesn't change.
 3. **Pending:** the entity shows the requested value, with `confirmation: pending`.
-4. **Poll:** the SlowCoordinator polls every 60 s, too slow for this. So while a confirmation
-   is pending, the entity re-reads just the two dry-contact endpoints every 3 s and pushes the
+4. **Poll:** settings are polled only every 60 s, too slow for this. So while a confirmation
+   is pending, the entity re-reads both dry-contact endpoints every 3 s and pushes the
    result into the coordinator's data (`SlowCoordinator.refresh_dry_contacts`).
 5. **Settle:** the confirmation succeeds when the Envoy reports the requested value, or fails
    after 30 s (`DRY_CONTACT_CONFIRM_TIMEOUT`) and logs a

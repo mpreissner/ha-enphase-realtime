@@ -306,3 +306,45 @@ async def test_envoy_refusing_the_write(hass: HomeAssistant, fake: FakeEnphase) 
     with pytest.raises(HomeAssistantError, match="HTTP 500"):
         await _switch(hass, "dry_contact_NC1", SERVICE_TURN_OFF)
     assert _state(hass, entity_id) == (STATE_ON, None)
+
+
+async def test_states_polled_every_2_s(
+    hass: HomeAssistant,
+    fake: FakeEnphase,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level("DEBUG", logger="custom_components.enphase_realtime.coordinator")
+    await _setup(hass, _entry())
+    entity_id = _entity(hass, "switch", "dry_contact_NC1")
+
+    _report_state(fake, "NC1", "open")
+    await _poll(hass, freezer, 2)
+    assert _state(hass, entity_id) == ("off", None)
+    assert caplog.text.count("Dry contact NC1 now reports open") == 1
+
+    # A failed read keeps the last states, and the entity stays available.
+    fake.envoy_errors[STATES] = EnvoyConnectionError(f"{STATES}: HTTP 500")
+    await _poll(hass, freezer, 2)
+    assert _state(hass, entity_id) == ("off", None)
+
+
+async def test_state_poll_leaves_the_60_s_poll_alone(
+    hass: HomeAssistant, fake: FakeEnphase, freezer: FrozenDateTimeFactory
+) -> None:
+    await _setup(hass, _entry())
+    mode = _entity(hass, "select", "dry_contact_NC1_mode")
+    _report_settings(fake, "NC1", mode="soc")
+    # A contact changing on every 2 s read mustn't keep pushing the settings poll back.
+    for tick in range(35):
+        _report_state(fake, "NC1", "open" if tick % 2 else "closed")
+        await _poll(hass, freezer, 2)
+    assert hass.states.get(mode).state == "battery"
+
+
+async def test_no_state_poll_without_a_system_controller(
+    hass: HomeAssistant, fake: FakeEnphase, freezer: FrozenDateTimeFactory
+) -> None:
+    await _setup(hass, _entry(**{CONF_HAS_ENPOWER: False}))
+    fake.envoy_errors[STATES] = AssertionError("polled")
+    await _poll(hass, freezer, 2)
