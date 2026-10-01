@@ -1,7 +1,8 @@
 # Spec: Enphase Realtime core integration
 
-Status: implemented, 2026-09-26. All five phases are merged (section 9); spikes S3, S4 and
-S10 are still open, and S8 and S9 wait on users (section 10). Drafted 2026-09-24, revised
+Status: implemented, 2026-09-26. All five phases are merged (section 9). S4 and S10 were
+settled live by 2026-10-01; S3 is still open, and S8 and S9 are partly settled by a three-phase
+Australian site's diagnostics (section 10). Drafted 2026-09-24, revised
 2026-09-25 for 1 s telemetry (3.1 and 3.2) and for core entity names (5).
 Protocol evidence: [../FINDINGS.md](../FINDINGS.md)
 
@@ -125,9 +126,9 @@ second, plus the stream).
   Controller isn't pushing fresh values to the Envoy, and the power figures may lag. If a poll
   sees `disabled`, the coordinator sends `POST /ivp/livedata/stream {"enable": 1}` (what the
   Enphase app's live view and `enphase-envoy-mqtt-json` both send), at most once a minute, and
-  logs it at debug. Whether it switches itself back off, and how stale `livedata` gets
-  without it, is spike S10. This POST changes a telemetry setting, not the system's behaviour,
-  so it isn't a control (6.4).
+  logs it at debug. It does switch itself back off now and then: 3 times in about 40 hours at
+  1 s on the reference site, each re-enabled automatically (S10). This POST changes a telemetry
+  setting, not the system's behaviour, so it isn't a control (6.4).
 
 **Never polled:** `production.json`, `inventory.json` and `home.json`.
 
@@ -179,9 +180,9 @@ configuration is what counts:
 The resulting `phase_layout` is `single`, `split` or `three`. Rules:
 
 - Use the `phaseMode` of the **enabled** production meter. If it's missing or unrecognised, fall
-  back to `phase_count` (1 = single, 3 = three, 2 with `is_split_phase` = split). Only
-  `"split"` has been seen; the spellings for single-phase and three-phase are unverified
-  (spike S9), so the parser has to accept unknown strings without failing.
+  back to `phase_count` (1 = single, 3 = three, 2 with `is_split_phase` = split). `"split"`
+  and `"three"` have been seen (the latter on a three-phase Australian site); the single-phase
+  spelling is unverified (spike S9), so the parser has to accept unknown strings without failing.
 - **Frames always carry `ph-a`, `ph-b` and `ph-c`, whatever the layout.** On the split-phase
   reference site `ph-c` is present and all zeros. Per-phase entities are created from
   `phase_layout`, never from which keys appear in a frame.
@@ -217,7 +218,7 @@ Region is used for:
 - **Times of day.** `chargeBeginTime` and `chargeEndTime` are minutes after local midnight in the
   site's time zone, not HA's. They're shown using the site time zone.
 - **Hosts.** `enlighten.enphaseenergy.com` and `entrez.enphaseenergy.com` are assumed to serve
-  every region. That hasn't been checked outside the US (S8). The hosts live in `const.py` so a
+  every region. They work from Australia (S8); other regions are unchecked. The hosts live in `const.py` so a
   regional override is a one-line change.
 
 Region is **not** used for units. Home Assistant converts to the user's unit system, so every
@@ -231,6 +232,7 @@ Only what the site has is created:
 |---|---|
 | No `ENCHARGE` in `/ivp/ensemble/inventory` (and `hasEncharge` false) | No battery devices, battery sensors or battery controls. The CloudCoordinator isn't created, and the cloud login is used only for the owner token |
 | No `ENPOWER` (`hasEnpower` false) | No System Controller device, grid relay entities or dry contacts |
+| `COLLAR` or `C6 COMBINER CONTROLLER` in the inventory | One device each, with read-only sensors (5.3). Nothing gates on them: the inventory is polled whenever the site has a battery or a System Controller, and a collar site has batteries |
 | Storage meter disabled in `/ivp/meters` | No battery lifetime energy counters |
 | Several `ENCHARGE` devices | One device each. Aggregate SoC and energy come from `secctrl` |
 | Stream returns 401 or 404 | See 3.1: no stream entities, `livedata` fallback |
@@ -405,6 +407,8 @@ aren't exposed in v1.
 | State of health | F `secctrl.ENC_agg_soh` | – (new) |
 | Per-battery: SoC, temperature, max cell temperature, communicating, DC switch, last reported, status | L `ensemble/inventory` ENCHARGE | `encharge_*` |
 | System Controller: communicating, temperature, last reported | L `ensemble/inventory` ENPOWER | `enpower_*` |
+| IQ Meter Collar: communicating, temperature, last reported, admin state, grid status, MID state; collar state and control error (diagnostic, new) | L `ensemble/inventory` COLLAR | `collar_*` |
+| C6 Combiner Controller: communicating, last reported; admin state (diagnostic, new) | L `ensemble/inventory` C6 COMBINER CONTROLLER | `c6_combiner_*` |
 | Storage mode select (on the System Controller) | C `profile` | `storage_mode` select (same options: backup, self_consumption, savings) |
 | Pending cloud change (binary, with `requestedConfig` as attributes) | C `requestedConfig.pendingGateways` non-empty | – (new) |
 
@@ -413,7 +417,18 @@ that unit as its native unit so HA converts it for the user. On the reference sy
 Battery `temperature` and `maxCellTemp` are **°C** (23) and the System Controller's
 `temperature` is **°F** (77, from the same moment). That matches pyenphase. It hasn't been
 checked on other System Controller models, so the unit is set per device type in one place in
-`const.py`.
+`const.py`. The IQ Meter Collar's is taken as **°C**, as in pyenphase (42 in its capture).
+
+**IQ Meter Collar and C6 Combiner Controller.** These replace the System Controller on newer
+sites: the collar holds the MID. Their fields come from pyenphase's capture of such a site
+(firmware 8.3.1598, `tests/fixtures/collar/`); the reference site has neither. The collar's
+admin state maps `ENCMN_MDE_ON_GRID` and `ENCMN_MDE_OFF_GRID` to `on_grid` and `off_grid` as
+the core integration does, and passes other values through. The core integration notes that
+going off grid shows in the admin state, while `grid_state` stays `on_grid`; that's unverified.
+The grid relay controls, the live Grid status binary sensor and the dry contacts still need a
+System Controller: nobody has checked what a collar site's `/ivp/ensemble/relay` returns, or
+whether its dry contacts take the same writes. The batteries in that capture
+(`836-01250`, `ENCMN_MDE_ENCHARGE_READY`) report the same fields as the reference IQ Battery 5P.
 
 **No pending change.** When nothing is pending, the `batterySettings` response has
 `requestedConfig: {}` with no `pendingGateways` key. A missing key or an empty object means
@@ -487,14 +502,17 @@ in `backup_only` even though `cfgControl.show` is true, so visibility must not r
 
 - **Switch:** "Grid enabled", on the System Controller device.
 - **Write:** the pyenphase call, `POST /ivp/ensemble/relay {"mains_admin_state":"open"|"closed"}`.
-  This is **unverified on D8.3.6086 (spike S4)**.
+  Verified live on D8.3.6086 with an owner token on 2026-10-01 (spike S4).
 - **Pre-check:** before the app toggles the grid, it calls
   `GET /app-api/{site}/grid_control_check.json`, which returns `disableGridControl`,
   `activeDownload`, `sunlightBackupSystemCheck`, `gridOutageCheck` and
   `userInitiatedGridToggle`. The integration makes the same call and refuses the write
-  (raising `HomeAssistantError` with the reason) if any of them blocks it. What each flag
-  means is part of S4; if the cloud is unreachable, the write is refused.
-- **Confirm:** `mains_admin_state` and then `mains_oper_state`, within 30 s.
+  (raising `HomeAssistantError` with the reason) if any of them blocks it. None was set
+  during the live test, so what each one means is still unknown; any set flag blocks the write.
+  If the cloud is unreachable, the write is refused.
+- **Confirm:** `mains_admin_state` and then `mains_oper_state`, within 90 s. Live on 2026-10-01
+  the relay took about 28 s to stop reporting closed when opening, so 30 s was too short; closing
+  confirmed in about 15 s.
 - **Gate:** the switch is only created when the `allow_grid_relay_control` option is on (off by
   default). Taking the house off-grid by accident can't be undone remotely if the battery is low.
 
@@ -567,14 +585,16 @@ Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`. Status
 4. **1 s telemetry.** `LiveCoordinator`, the stream write change and the new defaults (3.1,
    3.2), the `sc_stream` enable, and the README recorder guidance. **Done when** S10 is
    settled and a day at 1 s shows no Envoy errors or timeouts beyond the occasional miss.
-   **Built; the day-long run (S10) is still to do.**
+   **Done.** About 40 hours at 1 s (S10, 2026-09-26 to 09-28), with the MQTT add-on and the
+   core integration also polling: about 0.3% of polls failed, nearly all relay timeouts or the
+   Envoy rebooting itself.
 5. **Grid relay control** (once S4 passes) and a migration guide:
    - disable the core integration
    - remove the `_2` suffixes to take over the core entity IDs, which keeps automations
      (including ones on the core grid status and grid enabled entities) and history
 
-   **Built, with the migration guide. The relay write is unverified until S4, so the README
-   marks the switch experimental.**
+   **Done, with the migration guide.** The relay opened and closed live on 2026-10-01 (S4).
+   The switch stays experimental and off by default, because of the risk in 6.3.
 
 ## 10. Spikes and open questions
 
@@ -583,10 +603,10 @@ Each phase is its own `feature/*` branch off `dev`, with a PR into `dev`. Status
 | S1 | Does `POST /login/login.json` set `_enlighten_4_session` (and allow `batterySettings` GETs)? | **Settled (September 2026 capture):** yes. The login sets the cookie (HttpOnly, Secure), its value equals the body's `session_id`, and `batterySettings`/`siteSettings` GETs work with it |
 | S2 | How to get `site_id` and `user_id` from a session | **Settled:** `login.json` returns `system_id` (the site ID in every batteryConfig path) and `manager_token`, whose `data.user_id` is the `userId`/`Username` value. `search_sites` stays as the multi-site fallback; it is still empty in about half of calls |
 | S3 | Does `batteryBackupPercentage` show locally as `secctrl.configured_backup_soc`? (The PUT itself is proven by the shutdown-level test.) | One change in Self-Consumption, e.g. 30 → 32 and back, with the user watching. If confirmation fails but the change took effect, the confirm field is wrong |
-| S4 | Does `POST /ivp/ensemble/relay` work with an owner token on D8.3.6086? | Only with the user present, battery SoC above 50%, and an immediate restore |
+| S4 | Does `POST /ivp/ensemble/relay` work with an owner token on D8.3.6086? | **Settled (1 October 2026):** yes. Through the integration's switch, with the user present: `mains_oper_state` stopped reading closed about 28 s after the open command, and closing confirmed in about 15 s, so the confirmation window is now 90 s. The microinverters dropped out for about 45 s at the switchover, then ramped back up with the battery forming the grid. Open questions: what `oper_state` reads mid-transition, and why the dry contacts set to shed on the microgrid didn't (see FINDINGS) |
 | S5 | Do `/ivp/meters/readings` and `reports` lifetime counters match the core's lifetime values, and are they monotonic? Which storage field is charged and which discharged? (Reference site: `actEnergyDlvd` 626 Wh, `actEnergyRcvd` 13,560 Wh, on a new battery that spent the test day charging from grid, which suggests `Rcvd` = charged) | **Settled (25 September 2026):** all six lifetime counters match the core integration's on the reference site (production 742.84 kWh, consumption 1,530.2, import 1,158.6, export 371.25, battery charged 15.39, discharged 0.63). `actEnergyRcvd` is charged, as core has it. Production + import − export equals consumption exactly, and the counters only rose between restarts |
 | S6 | Dry-contact mapping (which contact switches the AC, which the dryer) | **Settled (28 September 2026):** NC1 switches the air conditioner. Opening it from the new switch cut the AC's ~50 W draw, and closing it restored it; both writes were confirmed within 4 s. The cutoff and restore level writes work too. NC2 is believed to be the dryer, not yet tested. Further live writes still only with the user present |
 | S7 | Is it worth adding the `mqttSignedUrl` AWS IoT stream as a push source for cloud state (to replace the 300 s poll)? | Revisit after phase 3 |
-| S8 | Outside the US: do the same Enlighten and Entrez hosts work, which charge-from-grid disclaimer type (if any) is needed, and what do `showChargeFromGrid` and `restrictCfg` look like? | Needs a non-US tester. Until then, the conservative gating in 3.3 applies |
-| S9 | What do single-phase and three-phase sites send for `phaseMode`, `phase_count`, `is_split_phase`, stream frames and `livedata` per-phase fields? What temperature unit do other System Controller models report? | Diagnostics dumps from users (3.3). Add each as a fixture under `tests/fixtures/<layout>/` |
-| S10 | At 1 s: does `livedata` `meters.last_update` advance every second, and does it slow down when `sc_stream` is `disabled`? Does `sc_stream` switch itself off after a while, and how often? Does the Envoy (D8.3.6086) stay responsive at ~2 requests a second plus the stream? Also: does `livedata` `main_relay_state` track `mains_oper_state`? If so it could replace the relay request on the live poll | Log `last_update`, `sc_stream` and request latency for a day with the MQTT add-on stopped (it enables `sc_stream` itself, which would hide the answer). Read-only except the enable POST |
+| S8 | Outside the US: do the same Enlighten and Entrez hosts work, which charge-from-grid disclaimer type (if any) is needed, and what do `showChargeFromGrid` and `restrictCfg` look like? | **Partly settled (27 September 2026):** the US hosts work from Australia, and the integration offers the charge-from-grid switch on the Australian site. The diagnostics don't include `showChargeFromGrid` or `restrictCfg`, and no charge-from-grid write has been tried there. Until then, the conservative gating in 3.3 applies |
+| S9 | What do single-phase and three-phase sites send for `phaseMode`, `phase_count`, `is_split_phase`, stream frames and `livedata` per-phase fields? What temperature unit do other System Controller models report? | **Three-phase settled (27 September 2026):** an Australian site sends `phaseMode` `"three"`, `phase_count` 3 and `is_split_phase` 0, at 50 Hz, and per-phase data parsed on all three phases. Its IQ System Controller 3 INT reports 77, which fits °F. Single-phase still needs a diagnostics dump. Add each as a fixture under `tests/fixtures/<layout>/` |
+| S10 | At 1 s: does `livedata` `meters.last_update` advance every second, and does it slow down when `sc_stream` is `disabled`? Does `sc_stream` switch itself off after a while, and how often? Does the Envoy (D8.3.6086) stay responsive at ~2 requests a second plus the stream? Also: does `livedata` `main_relay_state` track `mains_oper_state`? If so it could replace the relay request on the live poll | **Settled (28 September 2026),** over about 40 hours at 1 s with the MQTT add-on still running: the Envoy stayed responsive (typical poll 0.3 s, worst 3 s). About 0.3% of polls failed, mostly `/ivp/ensemble/relay` timeouts and the Envoy's own reboot. `sc_stream` switched itself off 3 times and was re-enabled automatically. The live values don't advance every second: they hold for 10–38 s about 20 times an hour, while polls keep succeeding. Still open: whether `main_relay_state` tracks `mains_oper_state`, which the relay test didn't capture, so the relay request stays on the live poll |

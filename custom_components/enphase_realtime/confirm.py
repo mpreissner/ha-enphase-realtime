@@ -13,10 +13,11 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 
 CONFIRM_TIMEOUT = timedelta(seconds=90)
-# The grid relay is local, so it has no cloud lag to wait out (spec 6.3).
-RELAY_CONFIRM_TIMEOUT = timedelta(seconds=30)
-# Dry contacts are local too (docs/specs/dry-contacts.md 5).
-DRY_CONTACT_CONFIRM_TIMEOUT = RELAY_CONFIRM_TIMEOUT
+# The grid relay is local, so it has no cloud lag to wait out, but it is slow to open: live on
+# 2026-10-01 it took about 28 s to stop reporting closed, and longer to report open (spec 6.3).
+RELAY_CONFIRM_TIMEOUT = timedelta(seconds=90)
+# Dry contacts are local too, and switch within about 3 s (docs/specs/dry-contacts.md 5).
+DRY_CONTACT_CONFIRM_TIMEOUT = timedelta(seconds=30)
 
 
 class Confirmation(StrEnum):

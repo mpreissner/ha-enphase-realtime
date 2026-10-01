@@ -80,6 +80,8 @@ def _serials(rt: Any) -> set[str]:
         if slow.inventory is not None:
             serials.update(b.serial for b in slow.inventory.batteries)
             serials.update(c.serial for c in slow.inventory.system_controllers)
+            serials.update(c.serial for c in slow.inventory.collars)
+            serials.update(c.serial for c in slow.inventory.combiner_controllers)
     return {s for s in serials if s}
 
 

@@ -56,6 +56,31 @@ contact's full object also works, and so do POSTs 0.3 s apart. The levels read b
 After any settings POST, `ensemble/dry_contacts` reports every NC contact as `open` for 5–90 s,
 not just the one written. The relays don't actually open: the AC kept drawing power throughout.
 
+**Grid relay opened and closed live (2026-10-01).** Through the integration's switch, with the
+user present. Opening: the command went at 10:51:17 and `mains_oper_state` stopped reading
+`closed` at 10:51:45 (about 28 s), but admin and oper still didn't match 30 s after the command,
+so the old 30 s confirmation failed falsely. What oper reports in between wasn't captured; the
+switch now logs every relay state change at debug. Closing confirmed in about 15 s. No relay
+timeouts during the test.
+
+- **Top-off before opening:** the battery read 100% and idle (Full Backup). From 10:51:26, 9 s
+  after the command, it charged from the grid, ramping to about 3.2 kW, then dropped to 0 W at
+  10:51:43; the relay opened at 10:51:45. Lifetime battery charged rose about 9 Wh over the
+  test. So the 28 s looks like a deliberate top-off before islanding, not a slow relay. Whether
+  there's a cap on how long it tops off (with a less-full battery) is unknown.
+- **PV while islanded:** the microinverters dropped out at the switchover and stayed at about
+  −20 W (standby draw) for about 45 s. They then ramped back up with the battery forming the grid
+  (14 W at 10:52:34, 248 W at 10:52:43), dropped out again at the reconnect, and came back about
+  10 s after it.
+- **Dry contacts didn't shed:** NC1 and NC2 have micro-grid action `shed` (set by the action
+  writes on 2026-09-28; the 2026-09-24 capture had `none`), and mode `manual` ("standard"),
+  which should carry out the action for the grid state. Yet the contacts still read `closed` on
+  the slow poll at 10:52:01, mid-island, and SPAN shows the AC (NC1) compressor starting at
+  10:52:14 while off grid, reaching 1.85 kW by the reconnect. Not yet explained. The leading
+  suspect is `manual_override` `"true"` on all four contacts (already set on 2026-09-24, before
+  any write), which may let the last manual open or close win over the configured actions.
+  Another possibility is that a commanded open isn't treated like a grid loss.
+
 ## Local writes do not work (D8.3.6086)
 
 `PUT /admin/lib/tariff` returns 200 and saves the file, but the controller ignores it:

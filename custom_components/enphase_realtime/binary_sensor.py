@@ -20,6 +20,8 @@ from .coordinator import LiveFeed, SlowData
 from .dry_contact import remove_read_only_contacts
 from .entity import (
     IQ_BATTERY,
+    IQ_COMBINER_CONTROLLER,
+    IQ_METER_COLLAR,
     IQ_SYSTEM_CONTROLLER,
     EnphaseEntity,
     by_serial,
@@ -91,6 +93,18 @@ def _battery(serial: str) -> list[EnphaseBinarySensorDescription]:
 def _controller(serial: str) -> list[EnphaseBinarySensorDescription]:
     return [
         _communicating(lambda d: by_serial(_inventory(d).system_controllers, serial).communicating)
+    ]
+
+
+def _collar(serial: str) -> list[EnphaseBinarySensorDescription]:
+    return [_communicating(lambda d: by_serial(_inventory(d).collars, serial).communicating)]
+
+
+def _combiner(serial: str) -> list[EnphaseBinarySensorDescription]:
+    return [
+        _communicating(
+            lambda d: by_serial(_inventory(d).combiner_controllers, serial).communicating
+        )
     ]
 
 
@@ -174,6 +188,18 @@ async def async_setup_entry(
             entities += [
                 EnphaseBinarySensor(rt.slow, d, device, controller.serial)
                 for d in _controller(controller.serial)
+            ]
+        for collar in slow.inventory.collars:
+            device = child_device(IQ_METER_COLLAR, collar.serial, rt.envoy_device_id)
+            entities += [
+                EnphaseBinarySensor(rt.slow, d, device, collar.serial)
+                for d in _collar(collar.serial)
+            ]
+        for combiner in slow.inventory.combiner_controllers:
+            device = child_device(IQ_COMBINER_CONTROLLER, combiner.serial, rt.envoy_device_id)
+            entities += [
+                EnphaseBinarySensor(rt.slow, d, device, combiner.serial)
+                for d in _combiner(combiner.serial)
             ]
     if slow.pcs is not None:
         entities += [
