@@ -125,6 +125,7 @@ CONTROLS = (
     ("select", "dry_contact_NC1_gen_action"),
     ("number", "dry_contact_NC1_soc_low"),
     ("number", "dry_contact_NC1_soc_high"),
+    ("switch", "dry_contact_NC1_manual_override"),
 )
 
 
@@ -143,6 +144,8 @@ async def test_writes_refused_unless_allowed(
         await _select(hass, "dry_contact_NC1_mode", "battery")
     with pytest.raises(ServiceValidationError):
         await _number(hass, "dry_contact_NC1_soc_low", 20)
+    with pytest.raises(ServiceValidationError):
+        await _switch(hass, "dry_contact_NC1_manual_override", SERVICE_TURN_OFF)
     assert fake.envoy_posts == []
 
 
@@ -181,6 +184,9 @@ async def test_controls_and_their_states(hass: HomeAssistant, fake: FakeEnphase)
     assert _state(hass, _entity(hass, "select", "dry_contact_NC1_grid_action"))[0] == "none"
     assert _state(hass, _entity(hass, "number", "dry_contact_NC1_soc_low"))[0] == "30"
     assert _state(hass, _entity(hass, "number", "dry_contact_NC1_soc_high"))[0] == "40"
+    override = _entity(hass, "switch", "dry_contact_NC1_manual_override")
+    assert override == "switch.nc1_manual_override"
+    assert _state(hass, override)[0] == STATE_ON
 
     entity = er.async_get(hass).async_get(_entity(hass, "switch", "dry_contact_NC1"))
     assert entity is not None and entity.device_id is not None
@@ -197,7 +203,11 @@ async def test_controls_and_their_states(hass: HomeAssistant, fake: FakeEnphase)
     registry = er.async_get(hass)
     for platform, key in CONTROLS:
         category = registry.async_get(_entity(hass, platform, key)).entity_category
-        expected = EntityCategory.CONFIG if platform == "number" else None
+        expected = (
+            EntityCategory.CONFIG
+            if platform == "number" or key.endswith("manual_override")
+            else None
+        )
         assert category == expected, key
 
 
@@ -348,3 +358,26 @@ async def test_no_state_poll_without_a_system_controller(
     await _setup(hass, _entry(**{CONF_HAS_ENPOWER: False}))
     fake.envoy_errors[STATES] = AssertionError("polled")
     await _poll(hass, freezer, 2)
+
+
+async def test_manual_override_written_as_a_string(
+    hass: HomeAssistant, fake: FakeEnphase, freezer: FrozenDateTimeFactory
+) -> None:
+    await _setup(hass, _entry())
+    entity_id = _entity(hass, "switch", "dry_contact_NC1_manual_override")
+
+    await _switch(hass, "dry_contact_NC1_manual_override", SERVICE_TURN_OFF)
+    assert fake.envoy_posts == [
+        (SETTINGS, {"dry_contacts": _raw("NC1") | {"manual_override": "false"}})
+    ]
+    assert _state(hass, entity_id) == ("off", "pending")
+
+    _report_settings(fake, "NC1", manual_override="false")
+    await _poll(hass, freezer)
+    assert _state(hass, entity_id) == ("off", "confirmed")
+
+    await _switch(hass, "dry_contact_NC1_manual_override", SERVICE_TURN_ON)
+    assert fake.envoy_posts[-1] == (
+        SETTINGS,
+        {"dry_contacts": _raw("NC1") | {"manual_override": "true"}},
+    )
