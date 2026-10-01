@@ -21,9 +21,11 @@ See [docs/specs/core-integration.md](docs/specs/core-integration.md) for the des
 
 ## Status
 
-**Beta.** Everything in the design is built and covered by tests, but it has only run on one
-site: a split-phase US system with an IQ System Controller, one IQ Battery 5P and Envoy
-firmware D8.3.6086.
+**Beta.** Everything in the design is built and covered by tests. It's been run mainly on one
+site, a split-phase US system with an IQ System Controller, one IQ Battery 5P and Envoy firmware
+D8.3.6086. Diagnostics have also come in from a second site: a three-phase system in
+Australia with an IQ System Controller 3 INT, three IQ Battery 5Ps and 24 IQ8HC
+microinverters.
 
 | Feature | State |
 |---|---|
@@ -32,12 +34,13 @@ firmware D8.3.6086.
 | Battery maintenance | **New.** Tested against captured data. It hasn't yet run a charge on the live system. Changes off by default |
 | Battery shutdown level number | Working. The cloud write and its local confirmation have been checked on the live system |
 | Reserve battery level number | The cloud write is proven. Whether the Envoy reports the new value where the integration looks for it hasn't been checked yet, so confirmation may time out even when the change took effect |
-| Grid enabled switch | **Experimental.** Built and tested against captured data, but it has never switched a real relay. Changes off by default |
-| Dry-contact controls | **Experimental.** The switch, battery-level numbers and action selects have been checked on the live system. The mode select uses the same write but hasn't been tried. Changes off by default |
-| Microinverter sensors | Built. Not checked against a producing array |
+| Grid enabled switch | **Experimental.** It has opened and closed the real relay on the reference site: opening took about 28 s to confirm and closing about 15 s. Changes off by default |
+| Dry-contact controls | **Experimental.** The switch, battery-level numbers and action selects have been checked on the live system. The mode select uses the same write but hasn't been tried. In the grid relay test the contacts didn't shed their loads off grid; that's still being investigated. Changes off by default |
+| Microinverter sensors | Working. Checked against live microinverter data on the reference site |
 | IQ Meter Collar and C6 Combiner Controller sensors | **New.** Tested against a capture from another site (pyenphase's test data); not yet seen on a live system. Diagnostics from a collar site are very welcome |
-| 1 s polling over a full day | Not yet measured. If your Envoy starts timing out, raise the live poll interval |
-| Single-phase and three-phase sites, non-US sites | Supported by design, untested. Diagnostics from these sites are very welcome |
+| 1 s polling over a full day | Done on the reference site. If your Envoy starts timing out, raise the live poll interval |
+| Three-phase and non-US sites | The Australian site's diagnostics show the right three-phase layout (three phases, 50 Hz), all three batteries, and a working cloud login from Australia. Grid relay and dry-contact changes haven't been tried there |
+| Single-phase sites | Supported by design, untested. Diagnostics from these sites are very welcome |
 
 ## Requirements
 
