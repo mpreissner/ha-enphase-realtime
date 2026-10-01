@@ -34,8 +34,6 @@ such.
 
 ### Non-goals (for now)
 
-- **Changing the storage mode or profile** (Self-Consumption, Full Backup, and so on). The
-  write endpoint hasn't been captured. The integration reads the mode but can't set it.
 - Configuring generators.
 - Supporting the legacy Envoy-S (firmware below 7) or envoys without an owner-token flow.
 - Getting the brand into home-assistant/brands.
@@ -407,7 +405,7 @@ aren't exposed in v1.
 | State of health | F `secctrl.ENC_agg_soh` | – (new) |
 | Per-battery: SoC, temperature, max cell temperature, communicating, DC switch, last reported, status | L `ensemble/inventory` ENCHARGE | `encharge_*` |
 | System Controller: communicating, temperature, last reported | L `ensemble/inventory` ENPOWER | `enpower_*` |
-| Storage mode (read-only sensor) | C `profile` | `storage_mode` select (writable in core; read-only here) |
+| Storage mode select (on the System Controller) | C `profile` | `storage_mode` select (same options: backup, self_consumption, savings) |
 | Pending cloud change (binary, with `requestedConfig` as attributes) | C `requestedConfig.pendingGateways` non-empty | – (new) |
 
 **Temperature units.** Each device reports temperature in its own unit, and the sensor declares
@@ -468,6 +466,7 @@ A failed write (anything other than 200, or an XSRF or auth error) raises
 |---|---|---|---|
 | Charge from grid switch | On: `POST acceptDisclaimer {"disclaimer-type":"itc"}`, then `PUT {"chargeFromGrid":true,"acceptedItcDisclaimer":true,"chargeBeginTime":…,"chargeEndTime":…,"chargeFromGridScheduleEnabled":false}` (keeps the current begin and end times from the last GET). Off: `PUT {"chargeFromGrid":false}` | `sc/sched['Charge From Grid Allowed']` | **Yes**, confirmed within 10–20 s |
 | Battery shutdown level number | `PUT {"veryLowSoc":N}`; min and max from cloud `veryLowSocMin` / `veryLowSocMax` (5–25) | `secctrl.VLS_Limit == N` | **Yes**, confirmed within about 20 s |
+| Storage mode select (on the System Controller) | `PUT {"profile":…}` (`backup_only`, `self-consumption`, `cost_savings`) | No Envoy field; confirmed when the cloud reports the profile with no `pendingGateways`, re-polling every 15 s (5 min timeout) | **Yes**, 2026-10-01, about 15–20 s. The profile brings its own stored reserve and charge-from-grid settings (FINDINGS) |
 | Reserve battery level number (on the System Controller) | `PUT {"batteryBackupPercentage":N}`; min and max from the cloud | `secctrl.configured_backup_soc == N` | **Write path yes** (same PUT as the shutdown level); **local confirmation field not yet (S3)**. Built; the entity is unavailable when `profile == backup_only`, where the cloud pins it at 100 |
 
 Battery maintenance (docs/specs/battery-maintenance.md) writes the same charge-from-grid

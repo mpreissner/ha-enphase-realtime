@@ -50,7 +50,7 @@ async def test_setup_creates_entities(
         ("sensor", "grid_power"),
         ("sensor", "current_battery_discharge"),
         ("sensor", "battery_soc"),
-        ("sensor", "storage_mode"),
+        ("select", "storage_mode"),
         ("binary_sensor", "grid_status"),
         ("binary_sensor", "pending_cloud_change"),
     ]:
@@ -245,7 +245,7 @@ async def test_cloud_outage_does_not_block_setup(
     await _setup(hass, config_entry)
     assert config_entry.state is ConfigEntryState.LOADED
     assert not config_entry.runtime_data.cloud.last_update_success
-    state = hass.states.get(_entity_id(hass, "sensor", "storage_mode"))
+    state = hass.states.get(_entity_id(hass, "select", "storage_mode"))
     assert state.state == STATE_UNAVAILABLE
 
 

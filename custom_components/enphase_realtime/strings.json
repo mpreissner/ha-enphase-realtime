@@ -121,6 +121,13 @@
   },
   "entity": {
     "select": {
+      "storage_mode": {
+        "state": {
+          "backup": "Full backup",
+          "self_consumption": "Self consumption",
+          "savings": "Savings mode"
+        }
+      },
       "dry_contact_mode": {
         "state": {
           "standard": "Standard",

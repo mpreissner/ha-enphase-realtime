@@ -76,7 +76,7 @@ If Enphase later refuses the saved login, Home Assistant asks you to log in agai
 - battery: charge, available energy, capacity, reserve, state of health, and per-battery
   status and temperatures
 - IQ System Controller: grid status, temperature and communication status
-- battery settings from the cloud: storage mode (read-only), charge from grid switch, battery
+- battery settings from the cloud: storage mode select, charge from grid switch, battery
   shutdown level and reserve battery level numbers, and a "Pending cloud change" sensor
 - dry contacts: switch, mode, actions and battery levels, changeable with an option (see [Dry contacts](#dry-contacts))
 - microinverters: last reported power and time (disabled by default)
@@ -249,8 +249,11 @@ Envoys that don't serve these endpoints simply don't get the entities.
 
 ## Known limitations
 
-- **Storage mode** (Self-Consumption, Full Backup and so on) is read-only. Change it in the
-  Enphase app.
+- **Storage mode** offers Full backup, Self consumption and Savings mode, as in the core
+  integration. Enphase keeps a reserve level and a charge-from-grid setting for each mode, and
+  changing the mode brings back that mode's own settings. For example, switching to Self
+  consumption can turn charge from grid on if it was last on in that mode. Modes outside these
+  three, such as AI Optimisation, show as unknown.
 - **Dry-contact controls** don't change a contact's load name, type, essential times or
   priority. Those are installer settings.
 - **Energy today and last 7 days** aren't provided. Use the Energy dashboard, or a
