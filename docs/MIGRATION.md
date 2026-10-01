@@ -29,8 +29,8 @@ Once the core integration is deleted, open each Enphase Realtime entity that got
 then has the core entity's ID and history.
 
 The entities below have the same ID in both integrations. `<serial>` is the Envoy's serial,
-`<sc>` the IQ System Controller's, `<battery>` each IQ Battery's and `<inverter>` each
-microinverter's. The IDs assume you kept the device names both integrations give; if you
+`<sc>` the IQ System Controller's, `<collar>` the IQ Meter Collar's, `<c6>` the C6 Combiner
+Controller's, `<battery>` each IQ Battery's and `<inverter>` each microinverter's. The IDs assume you kept the device names both integrations give; if you
 renamed a device, check the old IDs in your own entity list.
 
 | Entity ID (core and Enphase Realtime) |
@@ -58,6 +58,9 @@ renamed a device, check the old IDs in your own entity list.
 | `number.enpower_<sc>_reserve_battery_level` |
 | `switch.enpower_<sc>_charge_from_grid` (`switch.envoy_<serial>_charge_from_grid` on a site without a System Controller) |
 | `switch.enpower_<sc>_grid_enabled` (only with the grid relay option on; see the README) |
+| `sensor.collar_<collar>_temperature`, `_last_reported`, `_admin_state`, `_grid_status`, `_mid_state` |
+| `binary_sensor.collar_<collar>_communicating` |
+| `sensor.c6_combiner_<c6>_last_reported`, `binary_sensor.c6_combiner_<c6>_communicating` |
 | `sensor.inverter_<inverter>` |
 | `switch.<contact>`, `select.<contact>_mode`, `_grid_action`, `_microgrid_action`, `_generator_action`, `number.<contact>_cutoff_battery_level`, `_restore_battery_level` (changes need the dry-contact option), where `<contact>` is the contact's load name, or its ID (such as `nc1`) |
 

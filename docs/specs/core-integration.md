@@ -231,6 +231,7 @@ Only what the site has is created:
 |---|---|
 | No `ENCHARGE` in `/ivp/ensemble/inventory` (and `hasEncharge` false) | No battery devices, battery sensors or battery controls. The CloudCoordinator isn't created, and the cloud login is used only for the owner token |
 | No `ENPOWER` (`hasEnpower` false) | No System Controller device, grid relay entities or dry contacts |
+| `COLLAR` or `C6 COMBINER CONTROLLER` in the inventory | One device each, with read-only sensors (5.3). Nothing gates on them: the inventory is polled whenever the site has a battery or a System Controller, and a collar site has batteries |
 | Storage meter disabled in `/ivp/meters` | No battery lifetime energy counters |
 | Several `ENCHARGE` devices | One device each. Aggregate SoC and energy come from `secctrl` |
 | Stream returns 401 or 404 | See 3.1: no stream entities, `livedata` fallback |
@@ -405,6 +406,8 @@ aren't exposed in v1.
 | State of health | F `secctrl.ENC_agg_soh` | – (new) |
 | Per-battery: SoC, temperature, max cell temperature, communicating, DC switch, last reported, status | L `ensemble/inventory` ENCHARGE | `encharge_*` |
 | System Controller: communicating, temperature, last reported | L `ensemble/inventory` ENPOWER | `enpower_*` |
+| IQ Meter Collar: communicating, temperature, last reported, admin state, grid status, MID state; collar state and control error (diagnostic, new) | L `ensemble/inventory` COLLAR | `collar_*` |
+| C6 Combiner Controller: communicating, last reported; admin state (diagnostic, new) | L `ensemble/inventory` C6 COMBINER CONTROLLER | `c6_combiner_*` |
 | Storage mode select (on the System Controller) | C `profile` | `storage_mode` select (same options: backup, self_consumption, savings) |
 | Pending cloud change (binary, with `requestedConfig` as attributes) | C `requestedConfig.pendingGateways` non-empty | – (new) |
 
@@ -413,7 +416,18 @@ that unit as its native unit so HA converts it for the user. On the reference sy
 Battery `temperature` and `maxCellTemp` are **°C** (23) and the System Controller's
 `temperature` is **°F** (77, from the same moment). That matches pyenphase. It hasn't been
 checked on other System Controller models, so the unit is set per device type in one place in
-`const.py`.
+`const.py`. The IQ Meter Collar's is taken as **°C**, as in pyenphase (42 in its capture).
+
+**IQ Meter Collar and C6 Combiner Controller.** These replace the System Controller on newer
+sites: the collar holds the MID. Their fields come from pyenphase's capture of such a site
+(firmware 8.3.1598, `tests/fixtures/collar/`); the reference site has neither. The collar's
+admin state maps `ENCMN_MDE_ON_GRID` and `ENCMN_MDE_OFF_GRID` to `on_grid` and `off_grid` as
+the core integration does, and passes other values through. The core integration notes that
+going off grid shows in the admin state, while `grid_state` stays `on_grid`; that's unverified.
+The grid relay controls, the live Grid status binary sensor and the dry contacts still need a
+System Controller: nobody has checked what a collar site's `/ivp/ensemble/relay` returns, or
+whether its dry contacts take the same writes. The batteries in that capture
+(`836-01250`, `ENCMN_MDE_ENCHARGE_READY`) report the same fields as the reference IQ Battery 5P.
 
 **No pending change.** When nothing is pending, the `batterySettings` response has
 `requestedConfig: {}` with no `pendingGateways` key. A missing key or an empty object means

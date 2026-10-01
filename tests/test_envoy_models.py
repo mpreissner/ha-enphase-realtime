@@ -304,6 +304,47 @@ def test_inventory_without_storage() -> None:
     inv = Inventory.from_payload([])
     assert inv.batteries == []
     assert inv.system_controllers == []
+    assert inv.collars == []
+    assert inv.combiner_controllers == []
+
+
+def test_inventory_with_a_collar() -> None:
+    """pyenphase's capture of a site with an IQ Meter Collar and an IQ Combiner 6C, no System
+    Controller (tests/fixtures/README.md)."""
+    inv = Inventory.from_payload(load_json("ivp_ensemble_inventory.json", "collar"))
+    assert inv.system_controllers == []
+    # Its batteries report the same fields as the reference site's IQ Battery 5P.
+    assert [b.serial for b in inv.batteries] == ["910000000001", "910000000002"]
+    assert inv.batteries[0].soc == 92
+    assert inv.batteries[0].status == "ENCMN_MDE_ENCHARGE_READY"
+    assert inv.batteries[0].capacity == 5000
+    [collar] = inv.collars
+    assert collar.serial == "910000000003"
+    assert collar.firmware == "3.0.6-D0"
+    assert collar.temperature == 42
+    assert collar.communicating
+    assert collar.last_report == datetime.fromtimestamp(1752939759, UTC)
+    assert collar.status == "ENCMN_MDE_ON_GRID"
+    assert collar.mid_state == "close"
+    assert collar.grid_state == "on_grid"
+    assert collar.control_error == 0
+    assert collar.collar_state == "Installed"
+    [combiner] = inv.combiner_controllers
+    assert combiner.serial == "910000000004"
+    assert combiner.firmware == "0.1.20-D1"
+    assert combiner.communicating
+    assert combiner.last_report == datetime.fromtimestamp(1752945451, UTC)
+    assert combiner.status == "ENCMN_C6_CC_READY"
+
+
+def test_collar_with_missing_fields() -> None:
+    """Firmware may drop or rename fields; the collar's device stays, with unknown values."""
+    inv = Inventory.from_payload([{"type": "COLLAR", "devices": [{"serial_num": "910000000003"}]}])
+    [collar] = inv.collars
+    assert collar.temperature is None
+    assert collar.mid_state is None
+    assert collar.control_error is None
+    assert not collar.communicating
 
 
 def test_dry_contacts() -> None:

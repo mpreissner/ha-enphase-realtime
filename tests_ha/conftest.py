@@ -88,6 +88,8 @@ class FakeEnphase:
     battery_settings_error: EnlightenError | None = None
     # Fields merged over a fixture, so a test can move a local value (e.g. after a write).
     envoy_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Endpoints served from another fixture layout, such as "collar" (tests/fixtures/README.md).
+    envoy_layouts: dict[str, str] = field(default_factory=dict)
     site_settings_overrides: dict[str, Any] = field(default_factory=dict)
     battery_settings_overrides: dict[str, Any] = field(default_factory=dict)
     # Local POSTs as (path, body).
@@ -122,7 +124,7 @@ class FakeEnphase:
             raise self.envoy_errors[path]
         if path not in ENVOY_FIXTURES:
             raise EnvoyConnectionError(f"{path}: HTTP 404")
-        payload = load_json(ENVOY_FIXTURES[path])
+        payload = load_json(ENVOY_FIXTURES[path], self.envoy_layouts.get(path, "reference"))
         if path in self.envoy_overrides:
             payload.update(self.envoy_overrides[path])
         client.last_payloads[path] = payload

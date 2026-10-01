@@ -372,9 +372,39 @@ class SystemController:
 
 
 @dataclass(frozen=True, slots=True)
+class MeterCollar:
+    """The IQ Meter Collar: the MID on sites without a System Controller. Temperature is in °C,
+    as pyenphase reads it; no capture says otherwise."""
+
+    serial: str
+    firmware: str | None
+    temperature: float | None
+    communicating: bool
+    last_report: datetime | None
+    status: str | None
+    mid_state: str | None
+    grid_state: str | None
+    control_error: int | None
+    collar_state: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class CombinerController:
+    """The IQ Combiner 6C's controller."""
+
+    serial: str
+    firmware: str | None
+    communicating: bool
+    last_report: datetime | None
+    status: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class Inventory:
     batteries: list[Battery]
     system_controllers: list[SystemController]
+    collars: list[MeterCollar] = field(default_factory=list)
+    combiner_controllers: list[CombinerController] = field(default_factory=list)
 
     @classmethod
     def from_payload(cls, data: Any) -> Inventory:
@@ -403,6 +433,31 @@ class Inventory:
                         last_report=_timestamp(d.get("last_rpt_date")),
                     )
                     for d in devices.get("ENPOWER", [])
+                ],
+                collars=[
+                    MeterCollar(
+                        serial=d["serial_num"],
+                        firmware=d.get("img_pnum_running"),
+                        temperature=_number(d.get("temperature")),
+                        communicating=bool(d.get("communicating")),
+                        last_report=_timestamp(d.get("last_rpt_date")),
+                        status=d.get("admin_state_str"),
+                        mid_state=d.get("mid_state"),
+                        grid_state=d.get("grid_state"),
+                        control_error=_number(d.get("control_error")),
+                        collar_state=d.get("collar_state"),
+                    )
+                    for d in devices.get("COLLAR", [])
+                ],
+                combiner_controllers=[
+                    CombinerController(
+                        serial=d["serial_num"],
+                        firmware=d.get("fw_version"),
+                        communicating=bool(d.get("communicating")),
+                        last_report=_timestamp(d.get("last_rpt_date")),
+                        status=d.get("admin_state_str"),
+                    )
+                    for d in devices.get("C6 COMBINER CONTROLLER", [])
                 ],
             )
 
