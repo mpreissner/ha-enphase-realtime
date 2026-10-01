@@ -67,12 +67,14 @@ timeouts during the test.
   −20 W (standby draw) for about 45 s. They then ramped back up with the battery forming the grid
   (14 W at 10:52:34, 248 W at 10:52:43), dropped out again at the reconnect, and came back about
   10 s after it.
-- **Dry contacts didn't shed:** NC1 and NC2 have micro-grid action `shed`, but the contacts
-  still read `closed` on the slow poll at 10:52:01, mid-island. SPAN shows the AC circuit (NC1)
-  drawing up to 1.86 kW while off grid. All four contacts are in `manual` mode with
-  `manual_override` `"true"`, as the installer left them: the 2026-09-24 capture, made before
-  any write, already had this, NO1 and NO2 included. The likely reason is that manual mode follows the last manual command
-  and ignores the grid actions, but that hasn't been tested.
+- **Dry contacts didn't shed:** NC1 and NC2 have micro-grid action `shed` (set by the action
+  writes on 2026-09-28; the 2026-09-24 capture had `none`), and mode `manual` ("standard"),
+  which should carry out the action for the grid state. Yet the contacts still read `closed` on
+  the slow poll at 10:52:01, mid-island, and SPAN shows the AC (NC1) compressor starting at
+  10:52:14 while off grid, reaching 1.85 kW by the reconnect. Not yet explained. The leading
+  suspect is `manual_override` `"true"` on all four contacts (already set on 2026-09-24, before
+  any write), which may let the last manual open or close win over the configured actions.
+  Another possibility is that a commanded open isn't treated like a grid loss.
 
 ## Local writes do not work (D8.3.6086)
 
