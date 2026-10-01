@@ -709,7 +709,7 @@ async def async_setup_entry(
         )
     remove_read_only_contacts(hass, entry, "sensor")
 
-    # Versions before 0.4 had a read-only storage mode sensor; the select replaces it.
+    # Versions before 0.3 had a read-only storage mode sensor; the select replaces it.
     registry = er.async_get(hass)
     if entity_id := registry.async_get_entity_id("sensor", DOMAIN, f"{rt.serial}_storage_mode"):
         registry.async_remove(entity_id)
