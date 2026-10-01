@@ -112,15 +112,27 @@ async def test_go_off_grid_confirms_once_the_relay_opens(
     assert state is not None
     assert state.attributes["confirmation"] == "pending"
 
-    _relay(fake, "open", "open")
+    # The reference site never reports plain "open" off grid (FINDINGS 2026-10-01).
+    _relay(fake, "open", "open synchronizing")
     await _live_tick(hass, entry)
     state = hass.states.get(entity_id)
     assert state is not None
     assert (state.state, state.attributes["confirmation"]) == (STATE_OFF, "confirmed")
 
-    # And back on grid.
+    _relay(fake, "open", "open synchronized")
+    await _live_tick(hass, entry)
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert (state.state, state.attributes["confirmation"]) == (STATE_OFF, "confirmed")
+
+    # And back on grid: told, but still open.
     await _switch(hass, entity_id, SERVICE_TURN_ON)
     assert fake.envoy_posts[-1] == (RELAY, {"mains_admin_state": "closed"})
+    _relay(fake, "closed", "open synchronized")
+    await _live_tick(hass, entry)
+    state = hass.states.get(entity_id)
+    assert state is not None
+    assert state.attributes["confirmation"] == "pending"
     _relay(fake, "closed", "closed")
     await _live_tick(hass, entry)
     state = hass.states.get(entity_id)

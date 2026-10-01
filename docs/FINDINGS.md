@@ -81,6 +81,31 @@ timeouts during the test.
   any write), which may let the last manual open or close win over the configured actions.
   Another possibility is that a commanded open isn't treated like a grid loss.
 
+**Second relay test (2026-10-01, 12:14).** `manual_override` was `"false"` on all four
+contacts by then. The command went at 12:14:49 and the relay opened at 12:15:16 (27 s). The
+user re-closed it at 12:17:19, and it closed at 12:17:27 (8 s).
+
+- **Off-grid oper state:** `mains_oper_state` read `open synchronizing` at 12:15:16, then
+  `open synchronized` from 12:15:32. It never read plain `open`. Because those don't equal
+  `mains_admin_state` `open`, the switch logged a false failure at the 90 s timeout and showed
+  as unknown while off grid. It now treats the first word of oper as the relay's position.
+  While the relay was closing it read admin `closed`, oper `open synchronized`.
+- **Top-off:** the battery was at 99–100%. The Enphase app showed it charging before the relay
+  opened, but our `current_battery_discharge` (from `livedata/status`) read 0 W from 12:09:50
+  until 12:15:19, 3 s after the relay opened. PV was curtailed twice in that window (2.0 →
+  1.1 kW, then → 0.3 kW) and the grid made up the difference. Why the local live data missed
+  the charge this time, when it showed −3.2 kW in the first test, isn't known.
+- **NC2 shed, NC1 didn't:** NC2 opened at 12:15:16, the same moment as the relay, and closed
+  at 12:17:27; the dryer circuit went from 1.2 W to 0 W and back, confirming NC2 = dryer.
+  NC1 stayed `closed`, and the AC drew about 900 W throughout. Diagnostics taken at 12:23 show
+  identical settings for the two except `type`: NC1 `NONE`, NC2 `LOAD` (on 2026-09-28 all four
+  were `NONE`). The user reports that `type` is set only by an installer or Enphase support.
+  The working theory is that the Envoy acts only on `LOAD` contacts. Other fields that changed
+  since 2026-09-28: essential window 06:00–23:00, `override` `"true"` on NC1/NC2, load names set.
+- **Battery off grid:** discharging about 2.0–2.2 kW; SoC 99% at 12:16:04, 98% at 12:17:39.
+- **PV:** fluctuated, then went to standby from about 12:15:33 until after the reconnect. It
+  came back at 5.8 kW at 12:17:58, 31 s after the relay closed.
+
 ## Local writes do not work (D8.3.6086)
 
 `PUT /admin/lib/tariff` returns 200 and saves the file, but the controller ignores it:
