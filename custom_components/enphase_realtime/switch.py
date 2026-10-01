@@ -462,6 +462,42 @@ class DryContactSwitch(DryContactControl[bool], SwitchEntity):
         await self._async_write(closed, write)
 
 
+class DryContactOverrideSwitch(DryContactControl[bool], SwitchEntity):
+    """The contact's `manual_override` setting (docs/specs/dry-contacts.md 4)."""
+
+    @property
+    def is_on(self) -> bool | None:
+        return self._shown()
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._async_set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._async_set(False)
+
+    async def _async_set(self, on: bool) -> None:
+        async def write() -> None:
+            # A string, as the Envoy reports it (and as the 2026-10-01 live write sent it).
+            await self.coordinator.write_dry_contact_settings(
+                self._contact_id, {"manual_override": "true" if on else "false"}
+            )
+
+        await self._async_write(on, write)
+
+
+def _dry_contact_override(
+    slow: SlowCoordinator, contact_id: str, device: DeviceInfo, serial: str
+) -> DryContactOverrideSwitch:
+    description = EnphaseSwitchDescription(
+        key=f"dry_contact_{contact_id}_manual_override",
+        name="Manual override",
+        icon="mdi:hand-back-right-outline",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d: d.dry_contact_settings[contact_id].manual_override,
+    )
+    return DryContactOverrideSwitch(slow, description, device, serial, contact_id)
+
+
 def _dry_contact_switch(
     slow: SlowCoordinator, contact_id: str, device: DeviceInfo, serial: str
 ) -> DryContactSwitch:
@@ -486,10 +522,12 @@ async def async_setup_entry(
 
     rt = entry.runtime_data
     if contacts := dry_contact_controls(entry):
+        devices = {c: contact_device(hass, entry, c) for c in contacts}
         async_add_entities(
             [
-                _dry_contact_switch(rt.slow, c, contact_device(hass, entry, c), rt.serial)
+                make(rt.slow, c, devices[c], rt.serial)
                 for c in contacts
+                for make in (_dry_contact_switch, _dry_contact_override)
             ]
         )
 

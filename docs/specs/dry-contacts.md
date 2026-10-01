@@ -53,12 +53,19 @@ Each contact gets the following entities, on the contact's own device (see **Dev
 | select | `dry_contact_{id}_gen_action` | Generator action | `gen_action` | see below |
 | number | `dry_contact_{id}_soc_low` | Cutoff battery level | `soc_low` | 0–100 % |
 | number | `dry_contact_{id}_soc_high` | Restore battery level | `soc_high` | 0–100 % |
+| switch | `dry_contact_{id}_manual_override` | Manual override | `manual_override` | on = `"true"` |
 
 - **Actions:** `powered` = `apply`, `not_powered` = `shed`, `schedule` = `schedule`,
   `none` = `none`. These are the core integration's option names.
 - **Unrecognised values:** an Envoy value outside these maps shows as unknown.
 - **Categories:** as in the core integration, the switch and selects have no entity category
   (they show under Controls) and the two numbers are `config`.
+- **Manual override:** not in the core integration. The Envoy reports it as the string `"true"`
+  or `"false"`, and a write sends it back as a string (anything else shows as unknown). It's
+  `config`. What it does isn't documented. On the reference site it was `"true"` on all four
+  contacts from the first capture, and the contacts didn't open in the 2026-10-01 grid-relay
+  test. It was set to `"false"` on 2026-10-01 to find out whether it was the cause (FINDINGS).
+  A write works like the other settings writes (5).
 - **Device:** one per contact, as in the core integration: identifier
   `{envoy serial}_{id}`, model "Dry contact relay", linked to the System Controller (or the
   Envoy on a site without one). A fresh install gets core's entity IDs, such as `switch.nc1`
@@ -100,8 +107,8 @@ has written. It lays them over the Envoy's object for every later write, until:
 
 ## 6. What this doesn't do
 
-- **Other fields.** It doesn't write `load_name`, `type`, `override`, the essential times or
-  the priority. These are installer fields, and the core integration doesn't write them either.
+- **Other fields.** It doesn't write `load_name`, `type`, `override` (not `manual_override`),
+  the essential times or the priority. These are installer fields, and the core integration doesn't write them either.
 - **Status after a settings write.** It doesn't correct the Envoy's brief `open` reports after
   a settings write (see 7).
 - **Mode conflicts.** It doesn't keep the switch from fighting the mode. In `battery` mode, the
@@ -115,6 +122,7 @@ has written. It lays them over the Envoy's object for every later write, until:
   - no controls unless allowed, or without a System Controller;
   - the switch posts and confirms;
   - the full-object settings body;
+  - manual override written as a string;
   - back-to-back writes keep the earlier change;
   - failing after 30 s;
   - the level validation;

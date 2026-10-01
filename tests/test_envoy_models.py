@@ -317,6 +317,12 @@ def test_dry_contacts() -> None:
     raw = load_json("ivp_ss_dry_contact_settings.json")["dry_contacts"][0]
     assert settings["NC1"].raw == raw
     assert settings["NC1"].raw["override"] == "false"
+    assert settings["NC1"].manual_override is True  # sent as "true"
+    flags = [
+        DryContactSettings.parse_dict({"dry_contacts": [{"id": "X", "manual_override": v}]})["X"]
+        for v in ("false", True, "yes", None)
+    ]
+    assert [f.manual_override for f in flags] == [False, True, None, None]
 
 
 def test_export_limit() -> None:

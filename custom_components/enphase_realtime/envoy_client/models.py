@@ -420,6 +420,8 @@ class DryContactSettings:
     gen_action: str | None
     soc_low: float | None
     soc_high: float | None
+    # The Envoy sends it as a string, "true" or "false".
+    manual_override: bool | None = None
     # The contact's object as the Envoy sent it: a settings write sends it back whole, with only
     # the changed fields replaced (docs/specs/dry-contacts.md 2).
     raw: dict[str, Any] = field(default_factory=dict, compare=False, hash=False, repr=False)
@@ -437,10 +439,18 @@ class DryContactSettings:
                     gen_action=c.get("gen_action"),
                     soc_low=c.get("soc_low"),
                     soc_high=c.get("soc_high"),
+                    manual_override=_flag(c.get("manual_override")),
                     raw=dict(c),
                 )
                 for c in data["dry_contacts"]
             }
+
+
+def _flag(value: Any) -> bool | None:
+    """A bool the Envoy may send as `"true"` or `"false"`; anything else is unknown."""
+    if isinstance(value, bool):
+        return value
+    return {"true": True, "false": False}.get(value) if isinstance(value, str) else None
 
 
 def parse_dry_contact_states(data: Any) -> dict[str, bool]:
