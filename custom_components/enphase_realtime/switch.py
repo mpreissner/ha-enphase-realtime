@@ -345,10 +345,25 @@ class GridRelaySwitch(ConfirmingControl[LiveFeed, bool], SwitchEntity):
         super().__init__(live, GRID_ENABLED, device, serial, RELAY_CONFIRM_TIMEOUT)
         self._enlighten = enlighten
         self._site_id = site_id
+        self._last_relay: Relay | None = None
 
     @property
     def is_on(self) -> bool | None:
         return self._shown()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Logs each change in the relay's states, to show what it reports while it moves."""
+        relay = self.coordinator.data.relay if self.coordinator.data is not None else None
+        if relay is not None and relay != self._last_relay:
+            _LOGGER.debug(
+                "%s: relay admin state %s, oper state %s",
+                self.entity_id,
+                relay.admin_state,
+                relay.oper_state,
+            )
+            self._last_relay = relay
+        super()._handle_coordinator_update()
 
     def _local(self) -> bool | None:
         """Confirmed only once the relay has actually moved, not just been told to: both

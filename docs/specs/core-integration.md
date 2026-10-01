@@ -494,7 +494,9 @@ in `backup_only` even though `cfgControl.show` is true, so visibility must not r
   `userInitiatedGridToggle`. The integration makes the same call and refuses the write
   (raising `HomeAssistantError` with the reason) if any of them blocks it. What each flag
   means is part of S4; if the cloud is unreachable, the write is refused.
-- **Confirm:** `mains_admin_state` and then `mains_oper_state`, within 30 s.
+- **Confirm:** `mains_admin_state` and then `mains_oper_state`, within 90 s. Live on 2026-10-01
+  the relay took about 28 s to stop reporting closed when opening, so 30 s was too short; closing
+  confirmed in about 15 s.
 - **Gate:** the switch is only created when the `allow_grid_relay_control` option is on (off by
   default). Taking the house off-grid by accident can't be undone remotely if the battery is low.
 

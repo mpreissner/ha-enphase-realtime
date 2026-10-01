@@ -56,6 +56,24 @@ contact's full object also works, and so do POSTs 0.3 s apart. The levels read b
 After any settings POST, `ensemble/dry_contacts` reports every NC contact as `open` for 5–90 s,
 not just the one written. The relays don't actually open: the AC kept drawing power throughout.
 
+**Grid relay opened and closed live (2026-10-01).** Through the integration's switch, with the
+user present. Opening: the command went at 10:51:17 and `mains_oper_state` stopped reading
+`closed` at 10:51:45 (about 28 s), but admin and oper still didn't match 30 s after the command,
+so the old 30 s confirmation failed falsely. What oper reports in between wasn't captured; the
+switch now logs every relay state change at debug. Closing confirmed in about 15 s. No relay
+timeouts during the test.
+
+- **PV while islanded:** the microinverters dropped out at the switchover and stayed at about
+  −20 W (standby draw) for about 45 s. They then ramped back up with the battery forming the grid
+  (14 W at 10:52:34, 248 W at 10:52:43), dropped out again at the reconnect, and came back about
+  10 s after it.
+- **Dry contacts didn't shed:** NC1 and NC2 have micro-grid action `shed`, but the contacts
+  still read `closed` on the slow poll at 10:52:01, mid-island. SPAN shows the AC circuit (NC1)
+  drawing up to 1.86 kW while off grid. All four contacts are in `manual` mode with
+  `manual_override` `"true"`, as the installer left them: the 2026-09-24 capture, made before
+  any write, already had this, NO1 and NO2 included. The likely reason is that manual mode follows the last manual command
+  and ignores the grid actions, but that hasn't been tested.
+
 ## Local writes do not work (D8.3.6086)
 
 `PUT /admin/lib/tariff` returns 200 and saves the file, but the controller ignores it:

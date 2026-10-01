@@ -128,7 +128,7 @@ async def test_go_off_grid_confirms_once_the_relay_opens(
     assert (state.state, state.attributes["confirmation"]) == (STATE_ON, "confirmed")
 
 
-async def test_relay_that_never_moves_fails_after_30_s(
+async def test_relay_that_never_moves_fails_after_90_s(
     hass: HomeAssistant,
     fake: FakeEnphase,
     freezer: FrozenDateTimeFactory,
@@ -138,13 +138,30 @@ async def test_relay_that_never_moves_fails_after_30_s(
     assert entity_id is not None
     await _switch(hass, entity_id, SERVICE_TURN_OFF)
 
-    freezer.tick(timedelta(seconds=31))
+    freezer.tick(timedelta(seconds=91))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
     state = hass.states.get(entity_id)
     assert state is not None
     assert (state.state, state.attributes["confirmation"]) == (STATE_ON, "failed")
-    assert "after 30 s the Envoy still reports" in caplog.text
+    assert "after 90 s the Envoy still reports" in caplog.text
+
+
+async def test_relay_state_changes_are_logged_once(
+    hass: HomeAssistant, fake: FakeEnphase, caplog: pytest.LogCaptureFixture
+) -> None:
+    entry = _entry()
+    entity_id = await _setup(hass, entry)
+    assert entity_id is not None
+    caplog.set_level("DEBUG", logger="custom_components.enphase_realtime.switch")
+
+    _relay(fake, "open", "closed")
+    await _live_tick(hass, entry)
+    await _live_tick(hass, entry)
+    _relay(fake, "open", "open")
+    await _live_tick(hass, entry)
+    assert caplog.text.count("relay admin state open, oper state closed") == 1
+    assert caplog.text.count("relay admin state open, oper state open") == 1
 
 
 async def test_nothing_sent_when_already_in_that_state(

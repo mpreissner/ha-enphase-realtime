@@ -81,7 +81,7 @@ SlowCoordinator's data.
    is pending, the entity re-reads just the two dry-contact endpoints every 3 s and pushes the
    result into the coordinator's data (`SlowCoordinator.refresh_dry_contacts`).
 5. **Settle:** the confirmation succeeds when the Envoy reports the requested value, or fails
-   after 30 s (`DRY_CONTACT_CONFIRM_TIMEOUT`, which is `RELAY_CONFIRM_TIMEOUT`) and logs a
+   after 30 s (`DRY_CONTACT_CONFIRM_TIMEOUT`) and logs a
    warning.
 
 **Back-to-back settings writes.** Say the cutoff level changes and then the restore level
