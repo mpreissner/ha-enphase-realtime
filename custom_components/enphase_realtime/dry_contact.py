@@ -8,8 +8,9 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.core import CALLBACK_TYPE, callback
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_call_later
 
@@ -17,7 +18,7 @@ from .confirm import DRY_CONTACT_CONFIRM_TIMEOUT
 from .const import CONF_ALLOW_DRY_CONTACTS, DEFAULT_ALLOW_DRY_CONTACTS, DOMAIN
 from .control import ConfirmingControl
 from .coordinator import SlowCoordinator, SlowData
-from .entity import IQ_SYSTEM_CONTROLLER, child_device, envoy_device
+from .entity import IQ_SYSTEM_CONTROLLER, MANUFACTURER, child_device
 from .envoy_client.errors import EnvoyError
 
 if TYPE_CHECKING:
@@ -25,18 +26,36 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+DRY_CONTACT_RELAY = "Dry contact relay"
+
 # How often a control re-reads the contacts while a write is unconfirmed (spec 5).
 CONFIRM_POLL = 3
 
 
-def contacts_device(entry: EnphaseConfigEntry) -> DeviceInfo:
-    """Where the contacts' entities go: the System Controller, or the Envoy without one."""
+def contact_device(hass: HomeAssistant, entry: EnphaseConfigEntry, contact_id: str) -> DeviceInfo:
+    """The contact's own device, as in the core integration: named after its load and hanging
+    off the System Controller, or the Envoy without one."""
     rt = entry.runtime_data
     inventory = rt.slow.data.inventory
     controllers = inventory.system_controllers if inventory is not None else []
-    if not controllers:
-        return envoy_device(rt.serial, rt.firmware)
-    return child_device(IQ_SYSTEM_CONTROLLER, controllers[-1].serial, rt.envoy_device_id)
+    parent_id = rt.envoy_device_id
+    if controllers:
+        # Registered here so the contact can point at it by ID, whichever platform runs first.
+        parent_id = (
+            dr.async_get(hass)
+            .async_get_or_create(
+                config_entry_id=entry.entry_id,
+                **child_device(IQ_SYSTEM_CONTROLLER, controllers[-1].serial, rt.envoy_device_id),
+            )
+            .id
+        )
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{rt.serial}_{contact_id}")},
+        manufacturer=MANUFACTURER,
+        model=DRY_CONTACT_RELAY,
+        name=contact_label(rt.slow.data, contact_id),
+        via_device_id=parent_id,
+    )
 
 
 def contact_label(data: SlowData, contact_id: str) -> str:

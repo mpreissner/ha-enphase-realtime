@@ -41,7 +41,7 @@ from .coordinator import (
     LiveFeed,
     SlowCoordinator,
 )
-from .dry_contact import DryContactControl, contact_label, contacts_device, dry_contact_controls
+from .dry_contact import DryContactControl, contact_device, dry_contact_controls
 from .enlighten_client.battery import BatteryConfigClient
 from .enlighten_client.errors import EnlightenAuthError, EnlightenError
 from .enlighten_client.session import EnlightenSession
@@ -86,12 +86,12 @@ class ChargeFromGridSwitch(CloudControl[bool], SwitchEntity):
         self,
         fast: FastCoordinator,
         cloud: CloudCoordinator,
+        device: DeviceInfo,
         serial: str,
-        firmware: str,
         *,
         itc_disclaimer: bool,
     ) -> None:
-        super().__init__(fast, cloud, CHARGE_FROM_GRID, envoy_device(serial, firmware), serial)
+        super().__init__(fast, cloud, CHARGE_FROM_GRID, device, serial)
         self._itc = itc_disclaimer
 
     @property
@@ -412,12 +412,19 @@ def _grid_relay(entry: EnphaseConfigEntry) -> GridRelaySwitch | None:
         CONF_ALLOW_GRID_RELAY, DEFAULT_ALLOW_GRID_RELAY
     ):
         return None
+    return GridRelaySwitch(
+        rt.live, rt.enlighten, entry.data[CONF_SITE_ID], _controller_or_envoy(entry), rt.serial
+    )
+
+
+def _controller_or_envoy(entry: EnphaseConfigEntry) -> DeviceInfo:
+    """The grid relay's device, and charge from grid's, as in the core integration."""
+    rt = entry.runtime_data
     inventory = rt.slow.data.inventory
     controllers = inventory.system_controllers if inventory is not None else []
-    device = controller_or_envoy(
+    return controller_or_envoy(
         [c.serial for c in controllers], rt.envoy_device_id, envoy_device(rt.serial, rt.firmware)
     )
-    return GridRelaySwitch(rt.live, rt.enlighten, entry.data[CONF_SITE_ID], device, rt.serial)
 
 
 class DryContactSwitch(DryContactControl[bool], SwitchEntity):
@@ -445,7 +452,8 @@ def _dry_contact_switch(
 ) -> DryContactSwitch:
     description = EnphaseSwitchDescription(
         key=f"dry_contact_{contact_id}",
-        name=contact_label(slow.data, contact_id),
+        # The device's name, as in the core integration.
+        name=None,
         icon="mdi:electric-switch",
         value_fn=lambda d: d.dry_contact_states[contact_id],
     )
@@ -463,8 +471,12 @@ async def async_setup_entry(
 
     rt = entry.runtime_data
     if contacts := dry_contact_controls(entry):
-        device = contacts_device(entry)
-        async_add_entities([_dry_contact_switch(rt.slow, c, device, rt.serial) for c in contacts])
+        async_add_entities(
+            [
+                _dry_contact_switch(rt.slow, c, contact_device(hass, entry, c), rt.serial)
+                for c in contacts
+            ]
+        )
 
     if rt.cloud is None or rt.fast is None:
         return
@@ -479,7 +491,9 @@ async def async_setup_entry(
         return
     async_add_entities(
         [
-            ChargeFromGridSwitch(rt.fast, rt.cloud, rt.serial, rt.firmware, itc_disclaimer=itc),
+            ChargeFromGridSwitch(
+                rt.fast, rt.cloud, _controller_or_envoy(entry), rt.serial, itc_disclaimer=itc
+            ),
             MaintenanceSwitch(
                 rt.fast,
                 rt.cloud,

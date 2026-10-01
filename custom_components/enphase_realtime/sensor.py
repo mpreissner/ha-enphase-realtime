@@ -42,6 +42,7 @@ from .const import (
     PHASE_NAMES,
 )
 from .coordinator import FastData, LiveCoordinator, LiveFeed, SlowData
+from .dry_contact import contact_device
 from .entity import (
     IQ_BATTERY,
     IQ_MICROINVERTER,
@@ -431,23 +432,23 @@ def _inverter_sensors(serial: str) -> list[EnphaseSensorDescription]:
 
 
 _CONTACT_SETTINGS = (
-    ("mode", "mode"),
-    ("grid_action", "grid action"),
-    ("micro_grid_action", "microgrid action"),
-    ("gen_action", "generator action"),
-    ("soc_low", "cutoff battery level"),
-    ("soc_high", "restore battery level"),
+    ("mode", "Mode"),
+    ("grid_action", "Grid action"),
+    ("micro_grid_action", "Microgrid action"),
+    ("gen_action", "Generator action"),
+    ("soc_low", "Cutoff battery level"),
+    ("soc_high", "Restore battery level"),
 )
 
 
-def _contact_sensors(contact_id: str, label: str) -> list[EnphaseSensorDescription]:
+def _contact_sensors(contact_id: str) -> list[EnphaseSensorDescription]:
     out = []
     for attr, name in _CONTACT_SETTINGS:
         is_level = attr.startswith("soc_")
         out.append(
             EnphaseSensorDescription(
                 key=f"dry_contact_{contact_id}_{attr}",
-                name=f"{label} {name}",
+                name=name,
                 entity_category=EntityCategory.DIAGNOSTIC,
                 native_unit_of_measurement=PERCENTAGE if is_level else None,
                 value_fn=lambda d, a=attr: getattr(d.dry_contact_settings[contact_id], a),
@@ -725,7 +726,6 @@ async def async_setup_entry(
     slow = rt.slow.data
     add(rt.slow, _lifetime_sensors(slow), envoy, rt.serial)
     add(rt.slow, _installer_sensors(slow), envoy, rt.serial)
-    contacts_device = envoy
     if slow.inventory is not None:
         for battery in slow.inventory.batteries:
             add(
@@ -736,7 +736,6 @@ async def async_setup_entry(
             )
         for controller in slow.inventory.system_controllers:
             device = child_device(IQ_SYSTEM_CONTROLLER, controller.serial, rt.envoy_device_id)
-            contacts_device = device
             add(rt.slow, _controller_sensors(controller.serial), device, controller.serial)
     for inverter in slow.inverters:
         add(
@@ -745,11 +744,11 @@ async def async_setup_entry(
             child_device(IQ_MICROINVERTER, inverter.serial, rt.envoy_device_id),
             inverter.serial,
         )
-    for contact_id, settings in slow.dry_contact_settings.items():
+    for contact_id in slow.dry_contact_settings:
         add(
             rt.slow,
-            _contact_sensors(contact_id, settings.load_name or contact_id),
-            contacts_device,
+            _contact_sensors(contact_id),
+            contact_device(hass, entry, contact_id),
             rt.serial,
         )
 

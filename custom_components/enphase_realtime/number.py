@@ -23,8 +23,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from . import EnphaseConfigEntry
 from .const import DOMAIN, FULL_BACKUP
 from .control import CloudControl, charge_from_grid_itc
-from .coordinator import SlowData
-from .dry_contact import DryContactControl, contact_label, contacts_device, dry_contact_controls
+from .dry_contact import DryContactControl, contact_device, dry_contact_controls
 from .enlighten_client.battery import BatteryConfigClient
 from .entity import controller_or_envoy, envoy_device
 from .maintenance import MaintenanceSettings
@@ -207,17 +206,16 @@ class MaintenanceLevelNumber(RestoreNumber):
 
 # (Envoy field, name suffix, icon)
 _CONTACT_LEVELS = (
-    ("soc_low", "cutoff battery level", "mdi:battery-arrow-down-outline"),
-    ("soc_high", "restore battery level", "mdi:battery-arrow-up-outline"),
+    ("soc_low", "Cutoff battery level", "mdi:battery-arrow-down-outline"),
+    ("soc_high", "Restore battery level", "mdi:battery-arrow-up-outline"),
 )
 
 
-def _contact_levels(data: SlowData, contact_id: str) -> list[EnphaseNumberDescription]:
-    label = contact_label(data, contact_id)
+def _contact_levels(contact_id: str) -> list[EnphaseNumberDescription]:
     return [
         EnphaseNumberDescription(
             key=f"dry_contact_{contact_id}_{field}",
-            name=f"{label} {name}",
+            name=name,
             icon=icon,
             native_unit_of_measurement=PERCENTAGE,
             native_min_value=0,
@@ -273,11 +271,12 @@ async def async_setup_entry(
 ) -> None:
     rt = entry.runtime_data
     if contacts := dry_contact_controls(entry):
-        device = contacts_device(entry)
         async_add_entities(
-            DryContactLevelNumber(rt.slow, d, device, rt.serial, contact_id)
+            DryContactLevelNumber(
+                rt.slow, d, contact_device(hass, entry, contact_id), rt.serial, contact_id
+            )
             for contact_id in contacts
-            for d in _contact_levels(rt.slow.data, contact_id)
+            for d in _contact_levels(contact_id)
         )
     if rt.cloud is None or rt.fast is None:
         return

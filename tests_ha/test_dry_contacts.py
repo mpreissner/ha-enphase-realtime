@@ -156,7 +156,14 @@ async def test_controls_and_their_states(hass: HomeAssistant, fake: FakeEnphase)
     assert entity is not None and entity.device_id is not None
     device = dr.async_get(hass).async_get(entity.device_id)
     assert device is not None
-    assert device.model == "IQ System Controller"
+    assert (device.model, device.name) == ("Dry contact relay", "NC1")
+    controller = dr.async_get(hass).async_get(device.via_device_id or "")
+    assert controller is not None and controller.model == "IQ System Controller"
+    # Named as in the core integration: the switch takes the device's name.
+    assert entity.entity_id == "switch.nc1"
+    assert _entity(hass, "select", "dry_contact_NC1_mode") == "select.nc1_mode"
+    assert _entity(hass, "number", "dry_contact_NC1_soc_low") == "number.nc1_cutoff_battery_level"
+    assert _entity(hass, "binary_sensor", "dry_contact_NC1") == "binary_sensor.nc1"
 
 
 async def test_switch_confirms_on_a_quick_re_read(

@@ -210,8 +210,9 @@ while you're at the System Controller, with the battery well charged.
 ## Dry contacts
 
 On a site with an IQ System Controller, the option **Allow dry-contact control** adds controls
-for each dry contact (NC1, NC2, NO1, NO2), named after the contact's load name in the Enphase
-installer settings, or its ID when it has none:
+for each dry contact (NC1, NC2, NO1, NO2). As in the core integration, each contact has its
+own device, linked to the System Controller and named after the contact's load name in the
+Enphase installer settings, or its ID when it has none. The device holds:
 
 - a switch that closes (on) or opens (off) the contact;
 - selects for the mode (Standard, or Battery level) and for what the contact does on grid,
