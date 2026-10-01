@@ -20,6 +20,7 @@ from .confirm import DRY_CONTACT_CONFIRM_TIMEOUT
 from .const import (
     CONF_PHASE_LAYOUT,
     DOMAIN,
+    DRY_CONTACT_POLL,
     LIVE_FAILURES_BEFORE_UNAVAILABLE,
     LIVE_STAMP_LOG_AFTER,
     SC_STREAM_ENABLE_COOLDOWN,
@@ -255,6 +256,7 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
         # Per contact, settings fields written but not yet reported back: field -> (value, when
         # written). Later writes lay them over the Envoy's object (docs/specs/dry-contacts.md 5).
         self._written: dict[str, dict[str, tuple[Any, float]]] = {}
+        self._contact_poll_busy = False
 
     async def refresh_dry_contacts(self) -> None:
         """Re-read just the dry contacts, for a control waiting on a write. Raises the client's
@@ -263,9 +265,47 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
             self.client.dry_contact_settings(), self.client.dry_contact_states()
         )
         self._forget_reported(contacts)
-        self.async_set_updated_data(
-            replace(self.data, dry_contact_settings=contacts, dry_contact_states=states)
+        self._push(replace(self.data, dry_contact_settings=contacts, dry_contact_states=states))
+
+    def start_contact_poll(self, entry: ConfigEntry) -> None:
+        """Re-read the contacts' states every 2 s until the entry unloads."""
+        entry.async_on_unload(
+            async_track_time_interval(
+                self.hass, self._poll_contact_states, DRY_CONTACT_POLL, cancel_on_shutdown=True
+            )
         )
+
+    async def _poll_contact_states(self, _now: datetime) -> None:
+        # A slow Envoy mustn't pile reads up: skip the tick while the last read is still out.
+        if self._contact_poll_busy or self.data is None:
+            return
+        self._contact_poll_busy = True
+        try:
+            states = await self.client.dry_contact_states()
+        except EnvoyError as err:
+            # Keep the last states; the 60 s poll deals with a lasting failure.
+            _LOGGER.debug("Skipping a dry-contact poll: %s", err)
+            return
+        finally:
+            self._contact_poll_busy = False
+        self._push(replace(self.data, dry_contact_states=states))
+
+    @callback
+    def _push(self, data: SlowData) -> None:
+        """Publish re-read dry contacts. Not `async_set_updated_data`, which would push the next
+        60 s poll back each time."""
+        self._log_contact_changes(data.dry_contact_states)
+        if data != self.data:
+            self.data = data
+            self.async_update_listeners()
+
+    def _log_contact_changes(self, states: dict[str, bool]) -> None:
+        old = self.data.dry_contact_states if self.data is not None else {}
+        for contact_id, closed in states.items():
+            if contact_id in old and old[contact_id] != closed:
+                _LOGGER.debug(
+                    "Dry contact %s now reports %s", contact_id, "closed" if closed else "open"
+                )
 
     async def write_dry_contact_settings(self, contact_id: str, changes: dict[str, Any]) -> None:
         """Send the contact's full object with `changes` (Envoy field names) replaced."""
@@ -337,6 +377,7 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
             energy = LifetimeEnergy.from_payloads(meters, readings, reports)
         self._check_layout(meters)
         self._forget_reported(contacts)
+        self._log_contact_changes(states)
         return SlowData(meters, energy, inventory, contacts, states, inverters, export_limit, pcs)
 
     def _check_layout(self, meters: list[Meter]) -> None:

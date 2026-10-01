@@ -115,6 +115,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     slow = SlowCoordinator(hass, entry, client, hardware, tokens)
     await live.async_config_entry_first_refresh()
     await slow.async_config_entry_first_refresh()
+    if hardware.has_enpower:
+        slow.start_contact_poll(entry)
     fast = None
     if hardware.has_battery:
         fast = FastCoordinator(
