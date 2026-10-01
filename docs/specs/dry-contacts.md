@@ -152,5 +152,8 @@ has written. It lays them over the Envoy's object for every later write, until:
     relays didn't actually open. The integration shows what the Envoy reports and doesn't
     hide it, because hiding it would also hide a real change. Automations that trigger on a
     contact's state should use a `for:` duration.
-  - **Not yet tested:** the mode select (the same POST). Also untested: whether a grid action
+  - **Mode select (2026-10-01):** NC2 went to `soc` and back to `manual`, each confirmed in
+    4–5 s. With the battery near full, NC2 stayed closed in `soc` mode. Going back caused the
+    usual brief `open` report on both NC contacts (about 1 s).
+  - **Not yet tested:** whether a grid action
     of Powered makes the System Controller override the switch while the grid is up.

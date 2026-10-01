@@ -81,6 +81,11 @@ timeouts during the test.
   any write), which may let the last manual open or close win over the configured actions.
   Another possibility is that a commanded open isn't treated like a grid loss.
 
+**Dry-contact mode select (2026-10-01, 14:42).** The user switched NC2 to Battery level
+(`soc`), and it was confirmed in 5 s. NC2 stayed closed, as expected with the battery near full.
+Switching it back to Standard (`manual`) was confirmed in 4 s, with the usual false `open` on
+NC1 and NC2 for about 1 s.
+
 **Second relay test (2026-10-01, 12:14).** `manual_override` was `"false"` on all four
 contacts by then. The command went at 12:14:49 and the relay opened at 12:15:16 (27 s). The
 user re-closed it at 12:17:19, and it closed at 12:17:27 (8 s).

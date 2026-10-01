@@ -36,7 +36,7 @@ microinverters and Envoy firmware D8.3.5528.
 | Storage mode select | Working. Profile changes have been checked on the live system. They are confirmed from the cloud, because the Envoy doesn't report the profile |
 | Reserve battery level number | The cloud write is proven. Whether the Envoy reports the new value where the integration looks for it hasn't been checked yet, so confirmation may time out even when the change took effect |
 | Grid enabled switch | **Experimental.** It has opened and closed the real relay on the reference site (see [Grid relay](#grid-relay)). Changes off by default |
-| Dry-contact controls | **Experimental.** The switch, battery-level numbers and action selects have been checked on the live system. The mode select uses the same write but hasn't been tried. Off grid, a contact set to Not powered on the microgrid shed its load only when the installer had set its type to Load (see [Dry contacts](#dry-contacts)). Changes off by default |
+| Dry-contact controls | **Experimental.** The switch, mode and action selects, and battery-level numbers have all been checked on the live system. Off grid, a contact set to Not powered on the microgrid shed its load only when the installer had set its type to Load (see [Dry contacts](#dry-contacts)). Changes off by default |
 | Microinverter sensors | Working. Checked against live production on the reference site |
 | IQ Meter Collar and C6 Combiner Controller sensors | **New.** Tested against a capture from another site (pyenphase's test data); not yet seen on a live system. Diagnostics from a collar site are very welcome |
 | 1 s polling over a full day | Done: about 40 hours on the reference site, with other clients polling the same Envoy. About 0.3% of polls failed, mostly brief timeouts on the relay status request, which only rarely make entities unavailable. If your Envoy starts timing out, raise the live poll interval |
@@ -260,7 +260,7 @@ Enphase app, and only an installer or Enphase support can change it. If a contac
 Not powered doesn't shed off grid, ask them to check its type. The integration's diagnostics
 download includes it, under `/ivp/ss/dry_contact_settings`.
 
-Everything but the mode select has been tried on a live system (see [Status](#status)). If an
+Every control has been tried on a live system (see [Status](#status)). If an
 action for the current grid state is Powered or Not powered, the System Controller may override
 the switch. After a mode, action or level change, the Envoy may report the NC contacts as open
 for up to about a minute, although the relays haven't moved. Give automations that trigger on a
