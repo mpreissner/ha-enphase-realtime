@@ -72,6 +72,7 @@ MIN_FIRMWARE_MAJOR = 7
 # only; other System Controller models may differ.
 BATTERY_TEMPERATURE_UNIT = UnitOfTemperature.CELSIUS
 ENPOWER_TEMPERATURE_UNIT = UnitOfTemperature.FAHRENHEIT
+COLLAR_TEMPERATURE_UNIT = UnitOfTemperature.CELSIUS
 
 # Entity names use the installer's terms; unique IDs keep the Envoy's keys (spec 3.3).
 PHASE_NAMES = {"ph-a": "L1", "ph-b": "L2", "ph-c": "L3"}

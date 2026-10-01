@@ -35,6 +35,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from . import EnphaseConfigEntry
 from .const import (
     BATTERY_TEMPERATURE_UNIT,
+    COLLAR_TEMPERATURE_UNIT,
     CONF_BACKUP_LOAD_ENTITY,
     DOMAIN,
     ENPOWER_TEMPERATURE_UNIT,
@@ -45,6 +46,8 @@ from .coordinator import FastData, LiveCoordinator, LiveFeed, SlowData
 from .dry_contact import remove_read_only_contacts
 from .entity import (
     IQ_BATTERY,
+    IQ_COMBINER_CONTROLLER,
+    IQ_METER_COLLAR,
     IQ_MICROINVERTER,
     IQ_SYSTEM_CONTROLLER,
     EnphaseEntity,
@@ -416,6 +419,63 @@ def _controller_sensors(serial: str) -> list[EnphaseSensorDescription]:
     ]
 
 
+# The core integration's lower-case values for the collar's admin state.
+_ADMIN_STATES = {"ENCMN_MDE_ON_GRID": "on_grid", "ENCMN_MDE_OFF_GRID": "off_grid"}
+
+
+def _admin_state(status: str | None) -> str | None:
+    return _ADMIN_STATES.get(status, status) if status is not None else None
+
+
+def _collar_sensors(serial: str) -> list[EnphaseSensorDescription]:
+    def collar(d: SlowData):
+        return by_serial(_required(d.inventory, "inventory").collars, serial)
+
+    def diagnostic(key: str, name: str, value_fn: Callable[[SlowData], Any]):
+        return EnphaseSensorDescription(
+            key=key, name=name, entity_category=EntityCategory.DIAGNOSTIC, value_fn=value_fn
+        )
+
+    return [
+        _temperature(
+            "temperature",
+            "Temperature",
+            COLLAR_TEMPERATURE_UNIT,
+            lambda d: collar(d).temperature,
+            entity_category=EntityCategory.DIAGNOSTIC,
+        ),
+        _last_reported(lambda d: collar(d).last_report),
+        # Names and values as in the core integration. It notes that going off grid shows in
+        # the admin state, while the grid state stays "on_grid".
+        EnphaseSensorDescription(
+            key="admin_state", name="Admin state", value_fn=lambda d: _admin_state(collar(d).status)
+        ),
+        EnphaseSensorDescription(
+            key="grid_status", name="Grid status", value_fn=lambda d: collar(d).grid_state
+        ),
+        EnphaseSensorDescription(
+            key="mid_state", name="MID state", value_fn=lambda d: collar(d).mid_state
+        ),
+        diagnostic("collar_state", "Collar state", lambda d: collar(d).collar_state),
+        diagnostic("control_error", "Control error", lambda d: collar(d).control_error),
+    ]
+
+
+def _combiner_sensors(serial: str) -> list[EnphaseSensorDescription]:
+    def combiner(d: SlowData):
+        return by_serial(_required(d.inventory, "inventory").combiner_controllers, serial)
+
+    return [
+        _last_reported(lambda d: combiner(d).last_report),
+        EnphaseSensorDescription(
+            key="admin_state",
+            name="Admin state",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            value_fn=lambda d: combiner(d).status,
+        ),
+    ]
+
+
 def _inverter_sensors(serial: str) -> list[EnphaseSensorDescription]:
     def inverter(d: SlowData):
         return by_serial(d.inverters, serial)
@@ -700,6 +760,12 @@ async def async_setup_entry(
         for controller in slow.inventory.system_controllers:
             device = child_device(IQ_SYSTEM_CONTROLLER, controller.serial, rt.envoy_device_id)
             add(rt.slow, _controller_sensors(controller.serial), device, controller.serial)
+        for collar in slow.inventory.collars:
+            device = child_device(IQ_METER_COLLAR, collar.serial, rt.envoy_device_id)
+            add(rt.slow, _collar_sensors(collar.serial), device, collar.serial)
+        for combiner in slow.inventory.combiner_controllers:
+            device = child_device(IQ_COMBINER_CONTROLLER, combiner.serial, rt.envoy_device_id)
+            add(rt.slow, _combiner_sensors(combiner.serial), device, combiner.serial)
     for inverter in slow.inverters:
         add(
             rt.slow,

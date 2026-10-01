@@ -30,10 +30,12 @@ def envoy_device(serial: str, firmware: str) -> DeviceInfo:
 IQ_BATTERY = ("IQ Battery", "Encharge")
 IQ_SYSTEM_CONTROLLER = ("IQ System Controller", "Enpower")
 IQ_MICROINVERTER = ("IQ Microinverter", "Inverter")
+IQ_METER_COLLAR = ("IQ Meter Collar", "Collar")
+IQ_COMBINER_CONTROLLER = ("C6 Combiner Controller", "C6 Combiner")
 
 
 def child_device(kind: tuple[str, str], serial: str, envoy_device_id: str) -> DeviceInfo:
-    """System Controller, IQ Battery or microinverter, all hanging off the Envoy."""
+    """A device in the inventory, or a microinverter, hanging off the Envoy."""
     model, prefix = kind
     return DeviceInfo(
         identifiers={(DOMAIN, serial)},

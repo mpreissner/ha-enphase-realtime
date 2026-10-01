@@ -453,6 +453,10 @@ def _hardware_summary(probe: Probe) -> str:
         parts.append("IQ Battery")
     if _has_enpower(probe):
         parts.append("System Controller")
+    if probe.inventory.collars:
+        parts.append("IQ Meter Collar")
+    if probe.inventory.combiner_controllers:
+        parts.append("C6 Combiner Controller")
     return ", ".join(parts) or "No battery or System Controller"
 
 

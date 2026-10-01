@@ -58,6 +58,14 @@ before committing.
 | `cloud_search_sites_empty.json` | `GET /app-api/search_sites.json` | the empty response seen in 2 of 4 calls |
 | `cloud_grid_control_check.json` | `GET /app-api/{site}/grid_control_check.json` | pre-check before a grid relay write |
 
+## `collar/`
+
+`ivp_ensemble_inventory.json` from a site with an IQ Meter Collar, a C6 Combiner Controller
+and two IQ Batteries, and no System Controller (Envoy firmware 8.3.1598). It comes from
+pyenphase's test data (`tests/fixtures/8.3.1598_collar/ivp_ensemble_inventory`, MIT licence).
+The serials are replaced with `910000000001` onwards, in file order; nothing else is changed.
+`FakeEnphase.envoy_layouts` serves it in place of the reference inventory.
+
 ## Other layouts
 
 Single-phase and three-phase captures go in `<layout>/` directories next to `reference/` (for

@@ -35,6 +35,7 @@ firmware D8.3.6086.
 | Grid enabled switch | **Experimental.** Built and tested against captured data, but it has never switched a real relay. Changes off by default |
 | Dry-contact controls | **Experimental.** The switch, battery-level numbers and action selects have been checked on the live system. The mode select uses the same write but hasn't been tried. Changes off by default |
 | Microinverter sensors | Built. Not checked against a producing array |
+| IQ Meter Collar and C6 Combiner Controller sensors | **New.** Tested against a capture from another site (pyenphase's test data); not yet seen on a live system. Diagnostics from a collar site are very welcome |
 | 1 s polling over a full day | Not yet measured. If your Envoy starts timing out, raise the live poll interval |
 | Single-phase and three-phase sites, non-US sites | Supported by design, untested. Diagnostics from these sites are very welcome |
 
@@ -68,7 +69,8 @@ as an **Integration**, then install **Enphase Realtime** and restart Home Assist
 If Enphase later refuses the saved login, Home Assistant asks you to log in again.
 
 **What you get**, on devices named as in the core integration (`Envoy <serial>`,
-`Enpower <serial>`, `Encharge <serial>`, `Inverter <serial>`):
+`Enpower <serial>`, `Encharge <serial>`, `Collar <serial>`, `C6 Combiner <serial>`,
+`Inverter <serial>`):
 
 - power: production, consumption, net consumption and battery flow, plus grid, load and PV
   power; per-phase voltage, current and power factor (disabled by default)
@@ -76,6 +78,10 @@ If Enphase later refuses the saved login, Home Assistant asks you to log in agai
 - battery: charge, available energy, capacity, reserve, state of health, and per-battery
   status and temperatures
 - IQ System Controller: grid status, temperature and communication status
+- IQ Meter Collar: admin state (on or off grid), grid status, MID state, temperature and
+  communication status; C6 Combiner Controller: admin state and communication status. On a
+  collar site there's no Grid enabled switch or dry-contact controls yet: those are built
+  around the System Controller
 - battery settings from the cloud: storage mode select, charge from grid switch, battery
   shutdown level and reserve battery level numbers, and a "Pending cloud change" sensor
 - dry contacts: switch, mode, actions and battery levels, changeable with an option (see [Dry contacts](#dry-contacts))
