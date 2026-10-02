@@ -39,6 +39,8 @@ FAST_TIMEOUT = aiohttp.ClientTimeout(total=10)
 LIVE_TIMEOUT = aiohttp.ClientTimeout(total=3)
 # Readings and reports walk every meter channel and are slower on a busy Envoy.
 SLOW_TIMEOUT = aiohttp.ClientTimeout(total=20)
+# `/production.json` has taken 30-55 s on the reference site (docs/FINDINGS.md).
+REPORT_TIMEOUT = aiohttp.ClientTimeout(total=90)
 # The stream sends a frame about once a second; 30 s of silence means it's dead (spec 3.1).
 STREAM_TIMEOUT = aiohttp.ClientTimeout(total=None, connect=10, sock_read=30)
 
@@ -205,7 +207,7 @@ class EnvoyClient:
 
     async def production_report(self) -> Any:
         """Raw; `ProductionReport.from_payload` needs it together with meters."""
-        return await self.get_json("/production.json?details=1", SLOW_TIMEOUT)
+        return await self.get_json("/production.json?details=1", REPORT_TIMEOUT)
 
     async def battery_power(self) -> dict[str, BatteryPower]:
         return BatteryPower.parse_dict(await self.get_json("/ivp/ensemble/power"))

@@ -42,6 +42,9 @@ DEFAULT_ALLOW_GRID_RELAY = False
 DEFAULT_ALLOW_DRY_CONTACTS = False
 
 SLOW_INTERVAL = timedelta(seconds=60)
+# `/production.json` is read in the background, as often as the Envoy answers it. A report older
+# than this is dropped and its sensors go unavailable.
+PRODUCTION_REPORT_MAX_AGE = timedelta(minutes=5)
 # Dry-contact states are read this often, to catch a contact opening when the grid goes
 # (docs/specs/dry-contacts.md 4). Their settings stay on the 60 s poll.
 DRY_CONTACT_POLL = timedelta(seconds=2)

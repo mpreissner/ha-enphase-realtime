@@ -31,7 +31,8 @@ Base `https://<envoy>/`, header `Authorization: Bearer <owner JWT>`, self-signed
 grid. That is probably how the controller drives the battery (not yet confirmed).
 
 Slow endpoints to avoid polling: `production.json` (30–55 s), `inventory.json` (~20 s),
-`home.json` (over 60 s). Installer-only endpoints return 401 with an owner token: `/ivp/peb/*`,
+`home.json` (over 60 s). `production.json` is read all the same, in the background, for the
+core integration's energy today and last seven days. Installer-only endpoints return 401 with an owner token: `/ivp/peb/*`,
 `/ivp/tpm/*`, `/ivp/meters/cts`, `/installer/*`, `/ivp/mod/<eid>/mode/power`.
 
 ### Update rates (measured 2026-09-25, D8.3.6086, MQTT add-on running)
