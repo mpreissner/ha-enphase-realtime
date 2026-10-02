@@ -320,11 +320,16 @@ from the device name. The model carries Enphase's current product name.
 | `Envoy <serial>` | Envoy |
 | `Enpower <serial>` | IQ System Controller |
 | `Encharge <serial>`, one per battery | IQ Battery |
-| `Inverter <serial>`, one per microinverter, all disabled by default | IQ Microinverter |
+| `Inverter <serial>`, one per microinverter | IQ Microinverter |
 | The contact's load name (or ID), one per dry contact, linked to the System Controller | Dry contact relay |
 
 The Envoy device is registered at setup, before the platforms load, and the others link to it
 with `via_device_id`, its device registry ID.
+
+**Parity.** Every entity the core integration creates exists here under the same
+entity ID; [core-entity-parity.md](core-entity-parity.md) lists what that added and the few
+known differences. The tables below describe the entities this integration was first built
+around.
 
 **Naming.** Where the core integration has the same entity, it gets the core's name and device,
 so the entity ID is the same and a move keeps its history without editing IDs
@@ -368,7 +373,7 @@ stream is off.
 | Lifetime net energy consumption (grid import) and Lifetime net energy production (grid export) | L readings, net-consumption meter: `actEnergyDlvd` = import, `actEnergyRcvd` = export | `lifetime_net_energy_*` |
 | Lifetime energy consumption | L `/ivp/meters/reports`, `total-consumption` `cumulative.whDlvdCum` | `lifetime_energy_*` |
 | Lifetime battery energy charged and discharged | L readings, storage meter: `actEnergyRcvd` = charged, `actEnergyDlvd` = discharged (S5) | `lifetime_battery_energy_*` |
-| Energy today, energy last 7 days | **Dropped** | The Envoy only has these in the slow `production.json`. Use HA's `utility_meter` or the Energy dashboard on the lifetime counters |
+| Energy production and consumption, today and last seven days | L `/production.json?details=1` | `energy_production_today` and so on ([core-entity-parity.md](core-entity-parity.md)) |
 
 **Why two endpoints.** Neither one has everything:
 
@@ -390,8 +395,8 @@ that isn't mapped, and any meter whose `state` isn't `enabled`. Create a counter
 meter is enabled.
 
 All lifetime sensors are `total_increasing` in Wh, so they can go straight into the Energy
-dashboard. They're totals across all phases; `readings` also has per-phase `channels`, which
-aren't exposed in v1.
+dashboard. They're totals across all phases; the per-phase `channels` in `readings` feed the per-phase
+entities in [core-entity-parity.md](core-entity-parity.md), disabled by default.
 
 ### 5.3 Battery and System Controller
 
@@ -443,8 +448,10 @@ nothing is pending, and it isn't a parse error.
 
 ### 5.5 Microinverters
 
-For each micro: last-report watts and last-report time, from L `/api/v1/production/inverters`.
-Parity with the core `inverter_*` entities. Disabled by default.
+For each micro: last-report watts (enabled by default, as in core) and last-report time, from
+L `/api/v1/production/inverters`, and the DC and AC readings, temperature and energy figures
+from L `/ivp/pdm/device_data` (disabled by default). Parity with the core `inverter_*`
+entities; see [core-entity-parity.md](core-entity-parity.md).
 
 ### 5.6 Dry contacts
 

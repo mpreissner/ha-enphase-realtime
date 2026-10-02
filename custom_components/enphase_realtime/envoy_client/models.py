@@ -12,7 +12,7 @@ import re
 import xml.etree.ElementTree as ET
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -47,6 +47,12 @@ def _number(value: Any) -> Any:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     return value
+
+
+def firmware_version(firmware: str) -> tuple[int, ...]:
+    """`D8.3.6086` → `(8, 3, 6086)`, for comparing. Empty if the string has no number."""
+    match = re.search(r"\d+(?:\.\d+)*", firmware)
+    return tuple(int(part) for part in match.group().split(".")) if match else ()
 
 
 # --- /info --------------------------------------------------------------------------------------
@@ -141,6 +147,9 @@ class Meter:
     enabled: bool
     phase_mode: str | None
     phase_count: int | None
+    metering_status: str | None = None
+    # Not sent by older firmware.
+    status_flags: tuple[str, ...] | None = None
 
     @classmethod
     def parse_list(cls, data: Any) -> list[Meter]:
@@ -152,6 +161,10 @@ class Meter:
                     enabled=m["state"] == "enabled",
                     phase_mode=m.get("phaseMode"),
                     phase_count=m.get("phaseCount"),
+                    metering_status=m.get("meteringStatus"),
+                    status_flags=(
+                        tuple(m["statusFlags"]) if m.get("statusFlags") is not None else None
+                    ),
                 )
                 for m in data
             ]
@@ -204,6 +217,242 @@ class LifetimeEnergy:
             storage_delivered=storage[0] if storage else None,
             storage_received=storage[1] if storage else None,
         )
+
+
+# --- CT readings and /production.json, as the core integration reads them -----------------------
+# (docs/specs/core-entity-parity.md). These follow pyenphase's parsing, firmware workarounds
+# included, so the entities they feed report what the core integration's did.
+
+PHASES = ("ph-a", "ph-b", "ph-c")
+
+# From this firmware a split-phase storage CT can report through one channel only.
+_STORAGE_CT_ONE_CHANNEL = (8, 3, 6000)
+# From this firmware /production.json can report net consumption as the total.
+_TOTAL_IS_NET_CONSUMPTION = (8, 3, 5433)
+
+
+def metered_phases(meters: Sequence[Meter]) -> tuple[str, ...]:
+    """The phases the enabled CTs measure separately; none on a single-phase site."""
+    count = max((m.phase_count or 1 for m in meters if m.enabled), default=1)
+    return PHASES[:count] if count > 1 else ()
+
+
+@dataclass(frozen=True, slots=True)
+class CtReading:
+    """One CT, or one phase of it. Energy in Wh, rounded as pyenphase does."""
+
+    energy_delivered: int
+    energy_received: int
+    active_power: int
+    power_factor: float
+    voltage: float
+    current: float
+    frequency: float
+    metering_status: str | None
+    status_flags: tuple[str, ...] | None
+
+    @classmethod
+    def from_payload(cls, data: Mapping[str, Any], meter: Meter) -> CtReading:
+        return cls(
+            energy_delivered=round(data["actEnergyDlvd"]),
+            energy_received=round(data["actEnergyRcvd"]),
+            active_power=round(data["activePower"]),
+            power_factor=data["pwrFactor"],
+            voltage=data["voltage"],
+            current=data["current"],
+            frequency=data["freq"],
+            # The Envoy reports status per CT, not per phase.
+            metering_status=meter.metering_status,
+            status_flags=meter.status_flags,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CtMeter:
+    """`total` is None, and so is a phase, where the firmware's reading can't be trusted."""
+
+    total: CtReading | None
+    phases: dict[str, CtReading | None]
+
+
+def parse_ct_meters(
+    meters: Sequence[Meter], readings: Any, firmware: str = ""
+) -> dict[str, CtMeter]:
+    """Each enabled CT's reading, by measurement type. Readings for eids `/ivp/meters` doesn't
+    list as enabled are ignored (firmware 8.3 sends extra all-zero ones)."""
+    enabled = {m.eid: m for m in meters if m.enabled}
+    phases = metered_phases(meters)
+    out: dict[str, CtMeter] = {}
+    with _parsing("/ivp/meters/readings"):
+        for reading in readings:
+            meter = enabled.get(int(reading["eid"]))
+            if meter is None:
+                continue
+            channels = reading.get("channels") or []
+            out[meter.measurement_type] = CtMeter(
+                total=CtReading.from_payload(reading, meter),
+                phases={
+                    ph: CtReading.from_payload(channel, meter)
+                    for ph, channel in zip(phases, channels, strict=False)
+                },
+            )
+    storage = out.get("storage")
+    if (
+        storage is not None
+        and firmware_version(firmware) >= _STORAGE_CT_ONE_CHANNEL
+        and len(phases) == 2
+        and next((m.phase_mode for m in reversed(list(enabled.values()))), None) == "split"
+    ):
+        out["storage"] = _without_dead_storage_channel(storage)
+    return out
+
+
+def _without_dead_storage_channel(storage: CtMeter) -> CtMeter:
+    """Blank what a one-channel storage CT gets wrong: when one leg reads zero energy and the
+    other carries the whole total, the total and the zero leg mean nothing."""
+    first, second = storage.phases.get("ph-a"), storage.phases.get("ph-b")
+    total = storage.total
+    if first is None or second is None or total is None:
+        return storage
+
+    def dead(leg: CtReading, other: CtReading) -> bool:
+        return (
+            leg.energy_delivered == 0
+            and leg.energy_received == 0
+            and other.energy_delivered != 0
+            and other.energy_received != 0
+            and other.energy_delivered == total.energy_delivered
+            and other.energy_received == total.energy_received
+        )
+
+    first_dead, second_dead = dead(first, second), dead(second, first)
+    if first_dead == second_dead:
+        return storage
+    return CtMeter(total=None, phases={**storage.phases, "ph-a" if first_dead else "ph-b": None})
+
+
+@dataclass(frozen=True, slots=True)
+class EnergyTotals:
+    """One `/production.json` section, or one phase of it: W and Wh."""
+
+    power: int
+    energy_today: int
+    energy_last_seven_days: int
+    energy_lifetime: int
+
+    @classmethod
+    def from_payload(cls, data: Mapping[str, Any]) -> EnergyTotals:
+        return cls(
+            power=round(data.get("wNow") or 0),
+            energy_today=round(data.get("whToday") or 0),
+            energy_last_seven_days=round(data.get("whLastSevenDays") or 0),
+            energy_lifetime=round(data.get("whLifetime") or 0),
+        )
+
+    def plus(self, production: EnergyTotals) -> EnergyTotals:
+        return replace(
+            self,
+            power=self.power + production.power,
+            energy_lifetime=self.energy_lifetime + production.energy_lifetime,
+        )
+
+    def same_reading(self, other: EnergyTotals) -> bool:
+        return self.power == other.power and self.energy_lifetime == other.energy_lifetime
+
+
+@dataclass(frozen=True, slots=True)
+class ProductionReport:
+    """`/production.json?details=1` on a metered Envoy. `net_consumption` is what the core
+    integration calls balanced net consumption: the phases netted against each other."""
+
+    production: EnergyTotals | None
+    consumption: EnergyTotals | None
+    net_consumption: EnergyTotals | None
+    production_phases: dict[str, EnergyTotals]
+    consumption_phases: dict[str, EnergyTotals]
+    net_consumption_phases: dict[str, EnergyTotals]
+    # Whether the Envoy reports each consumption section as active.
+    has_consumption: bool
+    has_net_consumption: bool
+    # Phases with any non-zero value. Zero means per-phase entities have nothing to show.
+    active_phase_count: int
+
+    @classmethod
+    def from_payload(
+        cls, data: Any, meters: Sequence[Meter], firmware: str = ""
+    ) -> ProductionReport:
+        phases = metered_phases(meters)
+        has_production_ct = any(m.enabled and m.measurement_type == "production" for m in meters)
+        with _parsing("/production.json"):
+            sources = {p.get("type"): p for p in data.get("production") or []}
+            eim, inverters = sources.get("eim"), sources.get("inverters")
+            sections = {
+                c.get("measurementType"): c
+                for c in data.get("consumption") or []
+                if c.get("activeCount")
+            }
+            total, net = sections.get("total-consumption"), sections.get("net-consumption")
+
+            eim_active = bool(eim and eim.get("activeCount"))
+            counted = [s for s in (total, net) if s is not None]
+            if eim is not None and (eim_active or has_production_ct):
+                counted.append(eim)
+            active_phase_count = max(
+                (sum(1 for line in s.get("lines") or [] if any(line.values())) for s in counted),
+                default=0,
+            )
+
+            def by_phase(section: Mapping[str, Any] | None) -> dict[str, EnergyTotals]:
+                lines = (section or {}).get("lines") or []
+                return {
+                    ph: EnergyTotals.from_payload(line)
+                    for ph, line in zip(phases, lines, strict=False)
+                }
+
+            production = None
+            production_phases: dict[str, EnergyTotals] = {}
+            # With a production CT the inverters' own count isn't a substitute for a dead CT.
+            if eim_active or not has_production_ct:
+                source = eim if eim_active else inverters
+                if source is not None:
+                    # Today and seven-day figures come from the CT even when it is idle.
+                    periods = {
+                        key: (eim or {}).get(key) or (inverters or {}).get(key)
+                        for key in ("whToday", "whLastSevenDays")
+                    }
+                    production = EnergyTotals.from_payload({**source, **periods})
+                if eim is not None:
+                    production_phases = by_phase(eim)
+
+            report = cls(
+                production=production,
+                consumption=EnergyTotals.from_payload(total) if total is not None else None,
+                net_consumption=EnergyTotals.from_payload(net) if net is not None else None,
+                production_phases=production_phases,
+                consumption_phases=by_phase(total),
+                net_consumption_phases=by_phase(net),
+                has_consumption=total is not None,
+                has_net_consumption=net is not None,
+                active_phase_count=active_phase_count,
+            )
+        if firmware_version(firmware) >= _TOTAL_IS_NET_CONSUMPTION:
+            return report._with_total_consumption_repaired()
+        return report
+
+    def _with_total_consumption_repaired(self) -> ProductionReport:
+        """Where the firmware reports net consumption as the total, add production back; with
+        no production figure the total can't be rebuilt and is dropped."""
+        total, net = self.consumption, self.net_consumption
+        if total is None or net is None or not total.same_reading(net):
+            return self
+        if self.production is None:
+            return replace(self, consumption=None, consumption_phases={})
+        phases = dict(self.consumption_phases)
+        for ph, reading in phases.items():
+            produced, netted = self.production_phases.get(ph), self.net_consumption_phases.get(ph)
+            if produced is not None and netted is not None and reading.same_reading(netted):
+                phases[ph] = reading.plus(produced)
+        return replace(self, consumption=total.plus(self.production), consumption_phases=phases)
 
 
 # --- /ivp/livedata/status (spec 5.1) ------------------------------------------------------------
@@ -603,6 +852,94 @@ class Inverter:
                 )
                 for i in data
             ]
+
+
+@dataclass(frozen=True, slots=True)
+class InverterDetail:
+    """`/ivp/pdm/device_data`: an inverter's last report in V, A, Hz, °C, Wh and s. Every value
+    is None while the inverter has nothing to report (at night `lastReading` is empty)."""
+
+    serial: str
+    dc_voltage: float | None
+    dc_current: float | None
+    ac_voltage: float | None
+    ac_current: float | None
+    ac_frequency: float | None
+    temperature: float | None
+    lifetime_energy: int | None
+    # Energy in the last reporting interval, in mWh as the core integration reports it.
+    energy_produced: float | None
+    energy_today: float | None
+    last_report_duration: float | None
+
+    @classmethod
+    def parse_dict(cls, data: Any) -> dict[str, InverterDetail]:
+        """By serial. Empty when the Envoy truncated the list at its device limit."""
+        with _parsing("/ivp/pdm/device_data"):
+            if data["deviceCount"] >= data["deviceDataLimit"]:
+                return {}
+            return {
+                d["sn"]: cls._from_device(d)
+                for d in data.values()
+                if isinstance(d, dict)
+                and d.get("devName") == "pcu"
+                and d.get("active")
+                and "sn" in d
+            }
+
+    @classmethod
+    def _from_device(cls, data: Mapping[str, Any]) -> InverterDetail:
+        channel = data["channels"][0]
+        last = channel.get("lastReading") or {}
+
+        def milli(key: str) -> float | None:
+            value = _number(last.get(key))
+            return value / 1000 if value is not None else None
+
+        duration = _number(last.get("duration"))
+        joules = _number(last.get("joulesProduced"))
+        lifetime = _number((channel.get("lifetime") or {}).get("joulesProduced"))
+        return cls(
+            serial=data["sn"],
+            dc_voltage=milli("dcVoltageINmV"),
+            dc_current=milli("dcCurrentINmA"),
+            ac_voltage=milli("acVoltageINmV"),
+            # The Envoy spells this one key with a lower-case "n".
+            ac_current=milli("acCurrentInmA"),
+            ac_frequency=milli("acFrequencyINmHz"),
+            temperature=_number(last.get("channelTemp")),
+            lifetime_energy=round(lifetime / 3600) if lifetime is not None else None,
+            energy_produced=(
+                round(joules / duration / 3.6, 3) if joules is not None and duration else None
+            ),
+            energy_today=_number((channel.get("wattHours") or {}).get("today")),
+            last_report_duration=duration,
+        )
+
+
+# --- /ivp/ensemble/power ------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class BatteryPower:
+    """One IQ Battery's power, in W and VA."""
+
+    serial: str
+    power: float
+    apparent_power: float
+
+    @classmethod
+    def parse_dict(cls, data: Any) -> dict[str, BatteryPower]:
+        with _parsing("/ivp/ensemble/power"):
+            return {
+                d["serial_num"]: cls(
+                    serial=d["serial_num"],
+                    power=d["real_power_mw"] / 1000,
+                    apparent_power=d["apparent_power_mva"] / 1000,
+                )
+                # The key ends in a colon in the Envoy's payload.
+                for d in data["devices:"]
+            }
 
 
 # --- /stream/meter (spec 3.1, 5.1) --------------------------------------------------------------

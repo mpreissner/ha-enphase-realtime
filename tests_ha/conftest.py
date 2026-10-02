@@ -67,6 +67,9 @@ ENVOY_FIXTURES = {
     "/ivp/ss/pel_settings": "ivp_ss_pel_settings.json",
     "/ivp/ss/pcs_settings": "ivp_ss_pcs_settings.json",
     "/api/v1/production/inverters": "api_v1_production_inverters.json",
+    "/production.json?details=1": "production_details.json",
+    "/ivp/ensemble/power": "ivp_ensemble_power.json",
+    "/ivp/pdm/device_data": "ivp_pdm_device_data.json",
 }
 
 
