@@ -3,8 +3,8 @@
 This guide moves a site from Home Assistant's core Enphase Envoy integration to Enphase
 Realtime and keeps your automations and history. Enphase Realtime creates every entity
 the core integration does, under the same device and entity names, so the old entity IDs carry
-over with no editing. The one exception is dry contacts without a load name (see
-[What doesn't carry over](#what-doesnt-carry-over)).
+over with no editing. The few exceptions are under
+[What doesn't carry over](#what-doesnt-carry-over).
 
 ## 1. Run both side by side first
 
@@ -73,6 +73,10 @@ renamed a device, check the old IDs in your own entity list.
 | **Dry contacts with a load name**, where `<contact>` is that name (such as `load_1`). Changes need the dry-contact option |
 | `switch.<contact>`, `select.<contact>_mode`, `_grid_action`, `_microgrid_action`, `_generator_action` |
 | `number.<contact>_cutoff_battery_level`, `_restore_battery_level` |
+| **Dry contacts without a load name.** The first such contact in the System Controller's order (NC1, NC2, NO1, NO2) has no suffix; the next ones end in `_2`, `_3`, `_4` |
+| `switch.enphase_envoy_<sc>_relay_<terminal>_relay_status`, where `<terminal>` is `nc1`, `nc2`, `no1` or `no2` |
+| `select.mode`, `select.grid_action`, `select.microgrid_action`, `select.generator_action` |
+| `number.envoy_<envoy>_cutoff_battery_level`, `number.restore_battery_level` |
 
 The same entities are enabled by default as in core. The ones core leaves disabled (the
 per-phase sensors, most CT readings and all microinverter sensors but power) are disabled here
@@ -89,12 +93,15 @@ point to the lifetime sensors above.
 
 ## What doesn't carry over
 
-- **Dry contacts without a load name.** Core gives these entity IDs with no device name, which
-  depend on the order they were created in (`select.mode`, `select.mode_2`,
-  `number.restore_battery_level_2`, `switch.enphase_envoy_<serial>_relay_no1_relay_status`).
-  Enphase Realtime names such a contact after its ID instead: `switch.no1`, `select.no1_mode`,
-  `number.no1_cutoff_battery_level` and so on. Automations that use the old IDs need editing.
-  Contacts with a load name aren't affected.
+- **Dry contacts without a load name, in three cases.** Their entity IDs carry over unless:
+  - you renamed the core integration's entry. Core's cutoff level takes its ID from the entry's
+    title, and Enphase Realtime assumes the default, `Envoy <serial>`;
+  - a load name was added or removed after core created the entities. Core keeps the IDs from
+    when it was set up; Enphase Realtime numbers the contacts that are unnamed now;
+  - another integration already uses a bare ID such as `select.mode`. Home Assistant then
+    hands out the next free number.
+
+  In those cases, rename the entities in Home Assistant or edit the automations.
 - **AC Battery (ACB) entities.** Enphase Realtime supports IQ Batteries only.
 - **Grid enabled** is only created when you turn on the grid relay option. See the README's
   [Grid relay](../README.md#grid-relay) section before you do.

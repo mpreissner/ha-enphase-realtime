@@ -160,6 +160,17 @@ def _core_entity_ids(batteries: list[str], sc: str, inverters: list[str]) -> set
     for inverter in inverters:
         ids.add(f"sensor.inverter_{inverter}")
         ids |= {f"sensor.inverter_{inverter}_{key}" for key in _INVERTER_SENSORS}
+    # The fixture's four contacts have no load name, so core numbers them in the Envoy's order.
+    for contact, n in (("nc1", ""), ("nc2", "_2"), ("no1", "_3"), ("no2", "_4")):
+        ids |= {
+            f"switch.enphase_envoy_{sc}_relay_{contact}_relay_status",
+            f"number.{envoy}_cutoff_battery_level{n}",
+            f"number.restore_battery_level{n}",
+            f"select.mode{n}",
+            f"select.grid_action{n}",
+            f"select.microgrid_action{n}",
+            f"select.generator_action{n}",
+        }
     return ids
 
 
@@ -175,7 +186,7 @@ async def test_entity_ids_match_the_core_integration(
         slow.inventory.system_controllers[0].serial,
         [i.serial for i in slow.inverters],
     )
-    assert len(expected) == 116 + 7 + 7 + 13 * 25
+    assert len(expected) == 116 + 7 + 7 + 13 * 25 + 7 * 4
     entries = er.async_entries_for_config_entry(er.async_get(hass), config_entry.entry_id)
     assert expected - {e.entity_id for e in entries} == set()
 
