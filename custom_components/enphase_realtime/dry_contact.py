@@ -32,6 +32,22 @@ DRY_CONTACT_RELAY = "Dry contact relay"
 # How often a control re-reads the contacts while a write is unconfirmed (spec 5).
 CONFIRM_POLL = 3
 
+# The core integration's entity IDs for a contact without a load name, by settings field ("" is
+# the relay switch). Core's contact device then has no name, so its entities are named without
+# one and Home Assistant numbers them: `{n}` is nothing for the first unnamed contact in the
+# Envoy's list, then `_2`, `_3`. The cutoff level is registered first, while the new device
+# still carries the config entry's title, and the switch has no name at all and falls back to
+# its unique ID (docs/specs/core-entity-parity.md 3.4).
+_CORE_UNNAMED_IDS = {
+    "": "switch.enphase_envoy_{controller}_relay_{contact}_relay_status",
+    "soc_low": "number.envoy_{envoy}_cutoff_battery_level{n}",
+    "soc_high": "number.restore_battery_level{n}",
+    "mode": "select.mode{n}",
+    "grid_action": "select.grid_action{n}",
+    "micro_grid_action": "select.microgrid_action{n}",
+    "gen_action": "select.generator_action{n}",
+}
+
 
 def contact_device(hass: HomeAssistant, entry: EnphaseConfigEntry, contact_id: str) -> DeviceInfo:
     """The contact's own device, as in the core integration: named after its load and hanging
@@ -63,6 +79,28 @@ def contact_label(data: SlowData, contact_id: str) -> str:
     """The Envoy's `load_name`, or the contact ID when it has none."""
     settings = data.dry_contact_settings.get(contact_id)
     return settings.load_name if settings is not None and settings.load_name else contact_id
+
+
+def core_unnamed_entity_id(
+    data: SlowData, envoy_serial: str, contact_id: str, field: str
+) -> str | None:
+    """The entity ID the core integration gives this setting of a contact without a load name.
+    None for a named contact, whose IDs follow from its device name, and for a setting core
+    doesn't have."""
+    template = _CORE_UNNAMED_IDS.get(field)
+    unnamed = [c for c, settings in data.dry_contact_settings.items() if not settings.load_name]
+    if template is None or contact_id not in unnamed:
+        return None
+    controllers = data.inventory.system_controllers if data.inventory is not None else []
+    if not controllers and "{controller}" in template:
+        return None
+    position = unnamed.index(contact_id) + 1
+    return template.format(
+        controller=controllers[-1].serial if controllers else "",
+        envoy=envoy_serial,
+        contact=contact_id,
+        n="" if position == 1 else f"_{position}",
+    ).lower()
 
 
 def dry_contact_controls(entry: EnphaseConfigEntry) -> list[str]:
@@ -108,6 +146,10 @@ class DryContactControl[T](ConfirmingControl[SlowData, T]):
         # levels configuration (their descriptions say so).
         self._attr_entity_category = description.entity_category
         self._contact_id = contact_id
+        # Suggested to Home Assistant; an entity already registered keeps the ID it has.
+        field = description.key.removeprefix(f"dry_contact_{contact_id}").removeprefix("_")
+        if (entity_id := core_unnamed_entity_id(slow.data, serial, contact_id, field)) is not None:
+            self.entity_id = entity_id
         self._cancel_poll: CALLBACK_TYPE | None = None
 
     async def async_added_to_hass(self) -> None:

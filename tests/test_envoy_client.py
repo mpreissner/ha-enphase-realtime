@@ -16,12 +16,18 @@ from envoy_client.errors import (
     EnvoyStreamUnavailable,
 )
 from envoy_client.local import EnvoyClient
-from envoy_client.models import LiveData, StreamFrame
+from envoy_client.models import BatteryPower, InverterDetail, LiveData, StreamFrame
 from envoy_client.stream import Backoff, StreamDecoder, run_stream
 
 from tests.helpers import load_json, load_text, make_jwt, serve
 
 STREAM = load_text("stream_meter.txt").encode()
+# The reads behind the core integration's entities (docs/specs/core-entity-parity.md).
+CORE_PARITY_FIXTURES = {
+    "/production.json": "production_details.json",
+    "/ivp/ensemble/power": "ivp_ensemble_power.json",
+    "/ivp/pdm/device_data": "ivp_pdm_device_data.json",
+}
 
 
 class FakeEnvoy:
@@ -32,6 +38,7 @@ class FakeEnvoy:
         self.stream_status = 200
         self.seen_tokens: list[str | None] = []
         self.posted: list[object] = []
+        self.queries: list[str] = []
         self.app = web.Application()
         self.app.router.add_get("/info", self.info)
         self.app.router.add_get("/ivp/livedata/status", self.livedata)
@@ -41,11 +48,22 @@ class FakeEnvoy:
         self.app.router.add_get("/ivp/meters/readings", self.garbage)
         self.app.router.add_get("/ivp/meters/reports", self.broken)
         self.app.router.add_get("/stream/meter", self.stream)
+        for path, name in CORE_PARITY_FIXTURES.items():
+            self.app.router.add_get(path, self._fixture(name))
 
     def _authorized(self, request: web.Request) -> bool:
         header = request.headers.get("Authorization")
         self.seen_tokens.append(header.removeprefix("Bearer ") if header else None)
         return header == f"Bearer {self.valid}"
+
+    def _fixture(self, name: str):
+        async def handler(request: web.Request) -> web.Response:
+            if not self._authorized(request):
+                return web.Response(status=401)
+            self.queries.append(request.path_qs)
+            return web.json_response(load_json(name))
+
+        return handler
 
     async def info(self, request: web.Request) -> web.Response:
         return web.Response(text=load_text("info.xml"), content_type="application/xml")
@@ -175,6 +193,20 @@ async def test_server_errors_and_bad_bodies(http: aiohttp.ClientSession) -> None
             await client.meter_readings()
         with pytest.raises(EnvoyConnectionError):
             await client.meter_reports()
+
+
+async def test_core_parity_reads(http: aiohttp.ClientSession) -> None:
+    envoy = FakeEnvoy()
+    async with serve(envoy.app) as url:
+        client = EnvoyClient(http, url, "good")
+        report = await client.production_report()
+        power = await client.battery_power()
+        details = await client.inverter_details()
+    # The report is returned raw, and must ask for the per-phase lines.
+    assert report == load_json("production_details.json")
+    assert "/production.json?details=1" in envoy.queries
+    assert power == BatteryPower.parse_dict(load_json("ivp_ensemble_power.json"))
+    assert details == InverterDetail.parse_dict(load_json("ivp_pdm_device_data.json"))
 
 
 async def test_unreachable_envoy_is_a_connection_error(http: aiohttp.ClientSession) -> None:

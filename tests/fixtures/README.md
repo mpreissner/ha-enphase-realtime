@@ -45,6 +45,9 @@ before committing.
 | `ivp_sc_status.json` | `GET /ivp/sc/status` | normal operation |
 | `ivp_sc_status_cg.json` | `GET /ivp/sc/status` | captured in mode 2, charging from grid |
 | `api_v1_production_inverters.json` | `GET /api/v1/production/inverters` | |
+| `production_details.json` | `GET /production.json?details=1` | energy today and last seven days, per-phase `lines` |
+| `ivp_ensemble_power.json` | `GET /ivp/ensemble/power` | the key is `devices:`, with the colon. Power in mW/mVA |
+| `ivp_pdm_device_data.json` | `GET /ivp/pdm/device_data` | captured at night, so every `lastReading` is empty. Holds 35 `pcu` entries, 25 of them active microinverters. Meter serials are the Envoy's plus `EIM<n>` |
 
 ### Enlighten (cloud)
 

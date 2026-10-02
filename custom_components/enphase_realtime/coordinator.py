@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import Awaitable
-from dataclasses import dataclass, replace
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -18,11 +18,13 @@ from homeassistant.util import dt as dt_util
 
 from .confirm import DRY_CONTACT_CONFIRM_TIMEOUT
 from .const import (
+    CONF_FIRMWARE,
     CONF_PHASE_LAYOUT,
     DOMAIN,
     DRY_CONTACT_POLL,
     LIVE_FAILURES_BEFORE_UNAVAILABLE,
     LIVE_STAMP_LOG_AFTER,
+    PRODUCTION_REPORT_MAX_AGE,
     SC_STREAM_ENABLE_COOLDOWN,
     SLOW_INTERVAL,
     STREAM_STALE_AFTER,
@@ -41,20 +43,25 @@ from .envoy_client.errors import (
 )
 from .envoy_client.local import EnvoyClient
 from .envoy_client.models import (
+    BatteryPower,
+    CtMeter,
     DryContactSettings,
     ExportLimit,
     Inventory,
     Inverter,
+    InverterDetail,
     LifetimeEnergy,
     LiveData,
     Meter,
     PcsSettings,
     PhaseLayout,
+    ProductionReport,
     Relay,
     Schedule,
     SecCtrl,
     StreamFrame,
     detect_phase_layout,
+    parse_ct_meters,
 )
 from .envoy_client.stream import run_stream
 
@@ -222,6 +229,15 @@ async def _optional[T](read: Awaitable[T]) -> T | None:
         return None
 
 
+def _parsed[T](parse: Callable[[], T]) -> T | None:
+    """The same for a payload parsed after its read."""
+    try:
+        return parse()
+    except EnvoyParseError as err:
+        _LOGGER.debug("Skipping an optional payload: %s", err)
+        return None
+
+
 @dataclass(frozen=True, slots=True)
 class SlowData:
     meters: list[Meter]
@@ -233,6 +249,12 @@ class SlowData:
     # Installer settings, read for display only. None where the Envoy doesn't serve them.
     export_limit: ExportLimit | None = None
     pcs: PcsSettings | None = None
+    # What the core integration's entities read (docs/specs/core-entity-parity.md). Each CT by
+    # measurement type, and three reads that are None where the Envoy doesn't serve them.
+    ct_meters: dict[str, CtMeter] = field(default_factory=dict)
+    production: ProductionReport | None = None
+    battery_power: dict[str, BatteryPower] | None = None
+    inverter_details: dict[str, InverterDetail] | None = None
 
 
 class SlowCoordinator(DataUpdateCoordinator[SlowData]):
@@ -253,10 +275,16 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
         self._hw = hardware
         self._tokens = tokens
         self._layout = PhaseLayout(entry.data[CONF_PHASE_LAYOUT])
+        self._firmware = entry.data.get(CONF_FIRMWARE) or ""
         # Per contact, settings fields written but not yet reported back: field -> (value, when
         # written). Later writes lay them over the Envoy's object (docs/specs/dry-contacts.md 5).
         self._written: dict[str, dict[str, tuple[Any, float]]] = {}
         self._contact_poll_busy = False
+        # `/production.json` can take most of a minute, so only the first poll waits for it.
+        # After that it's read in the background and the poll uses the last payload, kept here
+        # with when it was read.
+        self._report: tuple[Any, float] | None = None
+        self._report_task: asyncio.Task[None] | None = None
 
     async def refresh_dry_contacts(self) -> None:
         """Re-read just the dry contacts, for a control waiting on a write. Raises the client's
@@ -298,6 +326,28 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
         if data != self.data:
             self.data = data
             self.async_update_listeners()
+
+    async def _read_report(self) -> None:
+        """Read `/production.json` and publish it. A failed read keeps the last report."""
+        started = time.monotonic()
+        try:
+            payload = await self.client.production_report()
+        except EnvoyError as err:
+            _LOGGER.debug("Skipping an optional read: %s", err)
+            return
+        now = time.monotonic()
+        _LOGGER.debug("Read the production report in %.1f s", now - started)
+        self._report = (payload, now)
+        if self.data is not None:
+            self._push(replace(self.data, production=self._production(self.data.meters)))
+
+    def _production(self, meters: list[Meter]) -> ProductionReport | None:
+        if self._report is None:
+            return None
+        payload, when = self._report
+        if time.monotonic() - when > PRODUCTION_REPORT_MAX_AGE.total_seconds():
+            return None
+        return _parsed(lambda: ProductionReport.from_payload(payload, meters, self._firmware))
 
     def _log_contact_changes(self, states: dict[str, bool]) -> None:
         old = self.data.dry_contact_states if self.data is not None else {}
@@ -363,6 +413,9 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
                 inverters,
                 export_limit,
                 pcs,
+                battery_power,
+                inverter_details,
+                _,
             ) = await asyncio.gather(
                 c.meters(),
                 c.meter_readings(),
@@ -373,12 +426,34 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
                 c.inverters(),
                 _optional(c.export_limit()),
                 _optional(c.pcs_settings()),
+                _optional(c.battery_power()) if hw.has_battery else none(),
+                _optional(c.inverter_details()),
+                # Setup waits for the report: it decides which of its sensors exist.
+                self._read_report() if self.data is None else none(),
             )
             energy = LifetimeEnergy.from_payloads(meters, readings, reports)
+        if self.data is not None and (self._report_task is None or self._report_task.done()):
+            self._report_task = self.config_entry.async_create_background_task(
+                self.hass, self._read_report(), f"{DOMAIN} production report"
+            )
+        firmware = self._firmware
         self._check_layout(meters)
         self._forget_reported(contacts)
         self._log_contact_changes(states)
-        return SlowData(meters, energy, inventory, contacts, states, inverters, export_limit, pcs)
+        return SlowData(
+            meters,
+            energy,
+            inventory,
+            contacts,
+            states,
+            inverters,
+            export_limit,
+            pcs,
+            ct_meters=_parsed(lambda: parse_ct_meters(meters, readings, firmware)) or {},
+            production=self._production(meters),
+            battery_power=battery_power,
+            inverter_details=inverter_details,
+        )
 
     def _check_layout(self, meters: list[Meter]) -> None:
         """An installer changing the CTs needs a reload, not entities rebuilt in place."""

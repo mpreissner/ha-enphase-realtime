@@ -39,6 +39,9 @@ SAMPLES = [
     ("ivp_ss_dry_contact_settings.json", "ivp_ss_dry_contact_settings.json"),
     ("ivp_ensemble_dry_contacts.json", "ivp_ensemble_dry_contacts.json"),
     ("api_v1_production_inverters.json", "api_v1_production_inverters.json"),
+    ("production.json_details-1.json", "production_details.json"),
+    ("ivp_ensemble_power.json", "ivp_ensemble_power.json"),
+    ("ivp_pdm_device_data.json", "ivp_pdm_device_data.json"),
     ("cloud_batterySettings.json", "cloud_battery_settings.json"),
 ]
 
@@ -135,7 +138,10 @@ def main() -> None:
     replacements.update(dict.fromkeys(site_ids, PLACEHOLDER_SITE_ID))
     replacements.update(dict.fromkeys(user_ids, PLACEHOLDER_USER_ID))
 
-    pattern = re.compile(r"(?<![\w.])(" + "|".join(map(re.escape, replacements)) + r")(?![\w.])")
+    # A meter's serial is the Envoy's with an `EIM<n>` suffix (/ivp/pdm/device_data).
+    pattern = re.compile(
+        r"(?<![\w.])(" + "|".join(map(re.escape, replacements)) + r")(?=EIM\d\b|(?![\w.]))"
+    )
     OUT.mkdir(parents=True, exist_ok=True)
     for name, text in files.items():
         clean = pattern.sub(lambda m: replacements[m.group(1)], text)

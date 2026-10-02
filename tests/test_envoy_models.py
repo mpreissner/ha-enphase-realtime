@@ -12,21 +12,27 @@ from typing import Any
 
 import pytest
 from envoy_client.models import (
+    BatteryPower,
     DryContactSettings,
     EnvoyInfo,
     EnvoyParseError,
     ExportLimit,
     Inventory,
     Inverter,
+    InverterDetail,
     LifetimeEnergy,
     LiveData,
     Meter,
     PcsSettings,
     PhaseLayout,
+    ProductionReport,
     Relay,
     Schedule,
     SecCtrl,
     detect_phase_layout,
+    firmware_version,
+    metered_phases,
+    parse_ct_meters,
     parse_dry_contact_states,
 )
 
@@ -414,3 +420,271 @@ def test_inverters() -> None:
     first = inverters[0]
     assert first.serial == "900000000004"
     assert first.last_report is None  # lastReportDate 0 means never
+
+
+# --- What the core integration's entities read (docs/specs/core-entity-parity.md) ---------------
+
+
+@pytest.mark.parametrize(
+    ("firmware", "version"),
+    [("D8.3.6086", (8, 3, 6086)), ("R4.10.35", (4, 10, 35)), ("8", (8,)), ("x", ()), ("", ())],
+)
+def test_firmware_version(firmware: str, version: tuple[int, ...]) -> None:
+    assert firmware_version(firmware) == version
+
+
+def test_meter_status_fields() -> None:
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    assert meters[0].metering_status == "normal"
+    assert meters[0].status_flags == ()
+    data = load_json("ivp_meters.json")
+    data[0].update(meteringStatus="check-wiring", statusFlags=["production-imbalance"])
+    del data[1]["meteringStatus"], data[1]["statusFlags"]
+    flagged, bare, *_ = Meter.parse_list(data)
+    assert flagged.metering_status == "check-wiring"
+    assert flagged.status_flags == ("production-imbalance",)
+    assert bare.metering_status is None
+    assert bare.status_flags is None
+
+
+def test_metered_phases() -> None:
+    assert metered_phases(Meter.parse_list(load_json("ivp_meters.json"))) == ("ph-a", "ph-b")
+    assert metered_phases(_synthetic_meters(phaseCount=3)) == ("ph-a", "ph-b", "ph-c")
+    # A single-phase site has no per-phase entities, as in pyenphase.
+    assert metered_phases(_synthetic_meters(phaseCount=1)) == ()
+    assert metered_phases([]) == ()
+
+
+def test_ct_meters_reference() -> None:
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    cts = parse_ct_meters(meters, load_json("ivp_meters_readings.json"), "D8.3.6086")
+    # Only the enabled CTs; the disabled and unmapped eids' all-zero readings are skipped.
+    assert set(cts) == {"production", "net-consumption", "storage"}
+
+    net = cts["net-consumption"]
+    assert net.total is not None
+    assert net.total.energy_delivered == 1124885
+    assert net.total.energy_received == 371245
+    assert net.total.metering_status == "normal"
+    assert net.total.status_flags == ()
+    assert list(net.phases) == ["ph-a", "ph-b"]
+    first = net.phases["ph-a"]
+    assert first is not None
+    assert first.energy_delivered == 512411
+    assert first.voltage == pytest.approx(120, abs=10)
+
+    # Both storage legs carry energy, so the one-channel guard leaves them alone.
+    storage = cts["storage"]
+    assert storage.total is not None
+    assert (storage.total.energy_delivered, storage.total.energy_received) == (626, 13560)
+    assert all(leg is not None for leg in storage.phases.values())
+
+
+def _one_channel_storage_readings() -> Any:
+    """SYNTHETIC: the reference readings with the storage CT's second leg reading nothing."""
+    readings = load_json("ivp_meters_readings.json")
+    storage = next(r for r in readings if r["eid"] == 704643840)
+    live, dead = storage["channels"][0], storage["channels"][1]
+    live.update(actEnergyDlvd=storage["actEnergyDlvd"], actEnergyRcvd=storage["actEnergyRcvd"])
+    dead.update(actEnergyDlvd=0.0, actEnergyRcvd=0.0)
+    return readings
+
+
+def test_one_channel_storage_ct_is_blanked() -> None:
+    """Firmware 8.3.6xxx: the total and the dead leg mean nothing (pyenphase does the same)."""
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    storage = parse_ct_meters(meters, _one_channel_storage_readings(), "D8.3.6086")["storage"]
+    assert storage.total is None
+    assert storage.phases["ph-a"] is not None
+    assert storage.phases["ph-b"] is None
+    # The other CTs are untouched.
+    cts = parse_ct_meters(meters, _one_channel_storage_readings(), "D8.3.6086")
+    assert cts["production"].total is not None
+
+
+def test_one_channel_storage_guard_needs_the_firmware_and_split_phase() -> None:
+    readings = _one_channel_storage_readings()
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    for firmware in ("D8.2.4345", ""):
+        assert parse_ct_meters(meters, readings, firmware)["storage"].total is not None
+    three_phase = _synthetic_meters(phaseMode="three", phaseCount=3)
+    assert parse_ct_meters(three_phase, readings, "D8.3.6086")["storage"].total is not None
+
+
+def test_ct_meters_malformed() -> None:
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    with pytest.raises(EnvoyParseError):
+        parse_ct_meters(meters, [{"eid": 704643328}])
+
+
+def test_production_report_reference() -> None:
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    report = ProductionReport.from_payload(load_json("production_details.json"), meters)
+    assert report.production is not None
+    assert report.production.energy_lifetime == 742844
+    assert report.consumption is not None
+    assert report.consumption.power == 1133
+    assert report.consumption.energy_lifetime == 1496557
+    assert report.net_consumption is not None
+    assert report.net_consumption.energy_lifetime == 753713
+    assert report.has_consumption and report.has_net_consumption
+    assert report.active_phase_count == 2
+    for phases in (
+        report.production_phases,
+        report.consumption_phases,
+        report.net_consumption_phases,
+    ):
+        assert list(phases) == ["ph-a", "ph-b"]
+    assert report.consumption_phases["ph-a"].energy_lifetime == 689968
+
+
+def test_production_report_without_a_production_ct_uses_the_inverters() -> None:
+    """SYNTHETIC: the eim section idle and the production CT disabled."""
+    data = load_json("production_details.json")
+    eim = next(p for p in data["production"] if p["type"] == "eim")
+    eim["activeCount"] = 0
+    meters_data = load_json("ivp_meters.json")
+    meters_data[0]["state"] = "disabled"
+    report = ProductionReport.from_payload(data, Meter.parse_list(meters_data))
+    assert report.production is not None
+    assert report.production.energy_lifetime == 720423
+    # With the CT enabled but idle the inverters' count is no substitute, and there is none.
+    report = ProductionReport.from_payload(data, Meter.parse_list(load_json("ivp_meters.json")))
+    assert report.production is None
+
+
+def test_production_report_skips_inactive_consumption() -> None:
+    data = load_json("production_details.json")
+    for section in data["consumption"]:
+        section["activeCount"] = 0
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    report = ProductionReport.from_payload(data, meters)
+    assert report.consumption is None and report.net_consumption is None
+    assert not report.has_consumption and not report.has_net_consumption
+    assert report.consumption_phases == {}
+
+
+def _total_is_net(data: Any) -> Any:
+    """SYNTHETIC: total-consumption repeating net-consumption, the firmware 8.3.5433 fault."""
+    total, net = data["consumption"]
+    for target, source in [(total, net), *zip(total["lines"], net["lines"], strict=True)]:
+        target.update(wNow=source["wNow"], whLifetime=source["whLifetime"])
+    return data
+
+
+def test_total_consumption_repeating_net_is_repaired() -> None:
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    data = _total_is_net(load_json("production_details.json"))
+    data["production"][1]["wNow"] = 500.0
+    report = ProductionReport.from_payload(data, meters, "D8.3.6086")
+    assert report.consumption is not None and report.production is not None
+    assert report.consumption.energy_lifetime == 753713 + 742844
+    assert report.consumption.power == 1133 + 500
+    produced = report.production_phases["ph-a"].energy_lifetime
+    assert report.consumption_phases["ph-a"].energy_lifetime == 318881 + produced
+    # Older firmware doesn't have the fault, so the figures stand.
+    report = ProductionReport.from_payload(data, meters, "D7.6.175")
+    assert report.consumption is not None
+    assert report.consumption.energy_lifetime == 753713
+
+
+def test_total_consumption_is_dropped_when_it_cannot_be_repaired() -> None:
+    data = _total_is_net(load_json("production_details.json"))
+    data["production"][1]["activeCount"] = 0  # the production CT is enabled but idle
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    report = ProductionReport.from_payload(data, meters, "D8.3.6086")
+    assert report.production is None
+    assert report.consumption is None
+    assert report.consumption_phases == {}
+    assert report.net_consumption is not None
+
+
+def test_production_report_malformed() -> None:
+    with pytest.raises(EnvoyParseError):
+        ProductionReport.from_payload([], [])
+
+
+def test_inverter_details_reference() -> None:
+    """Captured at night: every inverter is listed and none has a last reading."""
+    details = InverterDetail.parse_dict(load_json("ivp_pdm_device_data.json"))
+    assert len(details) == 25
+    first = details["900000000004"]
+    assert first.serial == "900000000004"
+    assert first.lifetime_energy == 34745
+    assert first.energy_today == 0
+    for value in (
+        first.dc_voltage,
+        first.dc_current,
+        first.ac_voltage,
+        first.ac_current,
+        first.ac_frequency,
+        first.temperature,
+        first.energy_produced,
+        first.last_report_duration,
+    ):
+        assert value is None
+
+
+def test_inverter_details_last_reading() -> None:
+    """SYNTHETIC: a daytime `lastReading`, with field names and scale as pyenphase reads them."""
+    data = load_json("ivp_pdm_device_data.json")
+    device = next(d for d in data.values() if isinstance(d, dict) and d.get("devName") == "pcu")
+    device["channels"][0]["lastReading"] = {
+        "endDate": 1790258158,
+        "duration": 903,
+        "flags": 0,
+        "flags_hex": "0x0000000000000000",
+        "joulesProduced": 164443,
+        "acVoltageINmV": 244566,
+        "acFrequencyINmHz": 60000,
+        "dcVoltageINmV": 37570,
+        "dcCurrentINmA": 5000,
+        "channelTemp": 31,
+        "pwrConvErrSecs": 0,
+        "pwrConvMaxErrCycles": 0,
+        "joulesUsed": 0,
+        "leadingVArs": 0,
+        "laggingVArs": 0,
+        "acCurrentInmA": 730,
+        "l1NAcVoltageInmV": 0,
+        "l2NAcVoltageInmV": 0,
+        "l3NAcVoltageInmV": 0,
+        "rssi": 0,
+        "issi": 0,
+    }
+    detail = InverterDetail.parse_dict(data)[device["sn"]]
+    assert detail.dc_voltage == 37.57
+    assert detail.dc_current == 5.0
+    assert detail.ac_voltage == 244.566
+    assert detail.ac_current == 0.73
+    assert detail.ac_frequency == 60.0
+    assert detail.temperature == 31
+    assert detail.last_report_duration == 903
+    assert detail.energy_produced == round(164443 / 903 / 3.6, 3)
+
+
+def test_inverter_details_filtering() -> None:
+    data = load_json("ivp_pdm_device_data.json")
+    serials = [d["sn"] for d in data.values() if isinstance(d, dict) and d.get("devName") == "pcu"]
+    inactive, nameless = serials[0], serials[1]
+    for device in data.values():
+        if isinstance(device, dict) and device.get("sn") == inactive:
+            device["active"] = False
+        if isinstance(device, dict) and device.get("sn") == nameless:
+            del device["sn"]
+    details = InverterDetail.parse_dict(data)
+    assert len(details) == 23
+    assert inactive not in details
+
+    # At its device limit the Envoy truncates the list, so none of it is used (as pyenphase).
+    data["deviceDataLimit"] = data["deviceCount"]
+    assert InverterDetail.parse_dict(data) == {}
+    with pytest.raises(EnvoyParseError):
+        InverterDetail.parse_dict({"deviceCount": 1})
+
+
+def test_battery_power() -> None:
+    power = BatteryPower.parse_dict(load_json("ivp_ensemble_power.json"))
+    assert power == {"900000000002": BatteryPower("900000000002", 23.0, 23.0)}
+    with pytest.raises(EnvoyParseError):
+        BatteryPower.parse_dict({"devices": []})

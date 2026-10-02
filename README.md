@@ -76,11 +76,16 @@ If Enphase later refuses the saved login, Home Assistant asks you to log in agai
 `Enpower <serial>`, `Encharge <serial>`, `Collar <serial>`, `C6 Combiner <serial>`,
 `Inverter <serial>`):
 
+- every entity the core integration creates, under the same entity ID (see the
+  [migration guide](docs/MIGRATION.md))
 - power: production, consumption, net consumption and battery flow, plus grid, load and PV
-  power; per-phase voltage, current and power factor (disabled by default)
-- lifetime energy counters for the Energy dashboard
+  power
+- energy: lifetime counters for the Energy dashboard, and today's and the last seven days'
+  production and consumption
+- each CT's energy, power, voltage, current, power factor, frequency and metering status,
+  as a total and per phase (mostly disabled by default, as in core)
 - battery: charge, available energy, capacity, reserve, state of health, and per-battery
-  status and temperatures
+  power, status and temperatures
 - IQ System Controller: grid status, temperature and communication status
 - IQ Meter Collar: admin state (on or off grid), grid status, MID state, temperature and
   communication status; C6 Combiner Controller: admin state and communication status. On a
@@ -89,11 +94,13 @@ If Enphase later refuses the saved login, Home Assistant asks you to log in agai
 - battery settings from the cloud: storage mode select, charge from grid switch, battery
   shutdown level and reserve battery level numbers, and a "Pending cloud change" sensor
 - dry contacts: switch, mode, actions and battery levels, changeable with an option (see [Dry contacts](#dry-contacts))
-- microinverters: last reported power and time (disabled by default)
+- microinverters: power, plus DC and AC voltage and current, frequency, temperature, energy
+  and last report time (disabled by default)
 - optionally, the Enphase equipment's own draw (see [Enphase overhead](#enphase-overhead))
 
 The full list, with the core integration's equivalent for each entity, is in section 5 of the
-[spec](docs/specs/core-integration.md#5-entities-and-parity-with-the-core-integration).
+[spec](docs/specs/core-integration.md#5-entities-and-parity-with-the-core-integration) and in
+the [entity parity spec](docs/specs/core-entity-parity.md).
 
 ## Update rates and the recorder
 
@@ -239,7 +246,9 @@ charged.
 
 On a site with an IQ System Controller, each dry contact (NC1, NC2, NO1, NO2) gets the core
 integration's controls. As in the core integration, each contact has its own device, linked to the System Controller and named after the contact's load name in the
-Enphase installer settings, or its ID when it has none. The device holds:
+Enphase installer settings, or its terminal (such as NO1) when it has none. A contact without
+a load name still gets the core integration's entity IDs (`select.mode`, `select.mode_2`); the
+[migration guide](docs/MIGRATION.md) lists them. The device holds:
 
 - under Controls, a switch that closes (on) or opens (off) the contact, and selects for the mode (Standard, or Battery level) and for what the contact does on grid,
   on the microgrid and on a generator (Powered, Not powered, Follow schedule, None);
@@ -292,8 +301,11 @@ Envoys that don't serve these endpoints simply don't get the entities.
 - **Dry-contact controls** don't change a contact's load name, type, essential times or
   priority. Those are installer settings. A contact's actions are only carried out when its
   type is Load (see [Dry contacts](#dry-contacts)).
-- **Energy today and last 7 days** aren't provided. Use the Energy dashboard, or a
-  `utility_meter` on the lifetime sensors.
+- **Microinverter detail sensors** (voltage, current, temperature and so on) are unknown at
+  night, while the microinverters aren't reporting.
+- **Dry contacts without a load name** installed before 1.0.1 keep the entity IDs
+  they had (`switch.no1`, `select.no1_mode`). Only a new installation gets the core
+  integration's IDs for them.
 - **Battery settings need the cloud.** The Envoy ignores local battery writes on current
   firmware, so these controls stop working when Enphase's servers or your internet
   connection are down. The sensors keep working, because they're all read locally.

@@ -72,8 +72,8 @@ Each contact gets the following entities, on the contact's own device (see **Dev
   identical settings (FINDINGS). `type` is an installer field (6).
 - **Device:** one per contact, as in the core integration: identifier
   `{envoy serial}_{id}`, model "Dry contact relay", linked to the System Controller (or the
-  Envoy on a site without one). A fresh install gets core's entity IDs, such as `switch.nc1`
-  and `select.nc1_mode`. Unique IDs didn't change when the entities moved off the System
+  Envoy on a site without one). A fresh install gets core's entity IDs, also for a contact
+  without a load name ([core-entity-parity.md](core-entity-parity.md) 3.4). Unique IDs didn't change when the entities moved off the System
   Controller, so an existing install keeps its entity IDs.
 - **Polling:** the switches' states (`ensemble/dry_contacts`) are read every 2 s
   (`DRY_CONTACT_POLL`), so a contact opening when the grid goes shows up promptly. Settings
