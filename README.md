@@ -76,8 +76,8 @@ If Enphase later refuses the saved login, Home Assistant asks you to log in agai
 `Enpower <serial>`, `Encharge <serial>`, `Collar <serial>`, `C6 Combiner <serial>`,
 `Inverter <serial>`):
 
-- every entity the core integration creates, under the same entity ID (dry contacts without a
-  load name excepted; see the [migration guide](docs/MIGRATION.md))
+- every entity the core integration creates, under the same entity ID (see the
+  [migration guide](docs/MIGRATION.md))
 - power: production, consumption, net consumption and battery flow, plus grid, load and PV
   power
 - energy: lifetime counters for the Energy dashboard, and today's and the last seven days'
@@ -246,7 +246,9 @@ charged.
 
 On a site with an IQ System Controller, each dry contact (NC1, NC2, NO1, NO2) gets the core
 integration's controls. As in the core integration, each contact has its own device, linked to the System Controller and named after the contact's load name in the
-Enphase installer settings, or its ID when it has none. The device holds:
+Enphase installer settings, or its terminal (such as NO1) when it has none. A contact without
+a load name still gets the core integration's entity IDs (`select.mode`, `select.mode_2`); the
+[migration guide](docs/MIGRATION.md) lists them. The device holds:
 
 - under Controls, a switch that closes (on) or opens (off) the contact, and selects for the mode (Standard, or Battery level) and for what the contact does on grid,
   on the microgrid and on a generator (Powered, Not powered, Follow schedule, None);
@@ -301,8 +303,9 @@ Envoys that don't serve these endpoints simply don't get the entities.
   type is Load (see [Dry contacts](#dry-contacts)).
 - **Microinverter detail sensors** (voltage, current, temperature and so on) are unknown at
   night, while the microinverters aren't reporting.
-- **Dry contacts without a load name** get entity IDs from the contact's ID (`switch.no1`),
-  not the ones the core integration gives them.
+- **Dry contacts without a load name** installed before this version keep the entity IDs
+  they had (`switch.no1`, `select.no1_mode`). Only a new installation gets the core
+  integration's IDs for them.
 - **Battery settings need the cloud.** The Envoy ignores local battery writes on current
   firmware, so these controls stop working when Enphase's servers or your internet
   connection are down. The sensors keep working, because they're all read locally.

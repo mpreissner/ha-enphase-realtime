@@ -195,10 +195,16 @@ async def test_controls_and_their_states(hass: HomeAssistant, fake: FakeEnphase)
     assert (device.model, device.name) == ("Dry contact relay", "NC1")
     controller = dr.async_get(hass).async_get(device.via_device_id or "")
     assert controller is not None and controller.model == "IQ System Controller"
-    # Named as in the core integration: the switch takes the device's name.
-    assert entity.entity_id == "switch.nc1"
-    assert _entity(hass, "select", "dry_contact_NC1_mode") == "select.nc1_mode"
-    assert _entity(hass, "number", "dry_contact_NC1_soc_low") == "number.nc1_cutoff_battery_level"
+    # No load name: the device is named after the terminal, the entity IDs are core's.
+    controller_serial = next(i[1] for i in controller.identifiers if i[0] == DOMAIN)
+    assert entity.entity_id == f"switch.enphase_envoy_{controller_serial}_relay_nc1_relay_status"
+    assert hass.states.get(entity.entity_id).name == "NC1"
+    assert _entity(hass, "select", "dry_contact_NC1_mode") == "select.mode"
+    assert _entity(hass, "select", "dry_contact_NO2_gen_action") == "select.generator_action_4"
+    cutoff = f"number.envoy_{SERIAL}_cutoff_battery_level"
+    assert _entity(hass, "number", "dry_contact_NC1_soc_low") == cutoff
+    assert _entity(hass, "number", "dry_contact_NC2_soc_low") == f"{cutoff}_2"
+    assert _entity(hass, "number", "dry_contact_NO1_soc_high") == "number.restore_battery_level_3"
     # Laid out as in the core integration: controls, with the battery levels as configuration.
     registry = er.async_get(hass)
     for platform, key in CONTROLS:
@@ -209,6 +215,40 @@ async def test_controls_and_their_states(hass: HomeAssistant, fake: FakeEnphase)
             else None
         )
         assert category == expected, key
+
+
+async def test_named_and_unnamed_contacts_take_core_ids(
+    hass: HomeAssistant, fake: FakeEnphase
+) -> None:
+    """A named contact's IDs come from its load name; core numbers the unnamed ones among
+    themselves, in the Envoy's order (docs/specs/core-entity-parity.md 3.4)."""
+    names = {"NC1": "Load 1", "NC2": "Load 2"}
+    contacts = load_json("ivp_ss_dry_contact_settings.json")["dry_contacts"]
+    fake.envoy_overrides[SETTINGS] = {
+        "dry_contacts": [c | {"load_name": names.get(c["id"], "")} for c in contacts]
+    }
+    entry = _entry()
+    await _setup(hass, entry)
+    controller = entry.runtime_data.slow.data.inventory.system_controllers[-1].serial
+    expected = {
+        ("switch", "dry_contact_NC1"): "switch.load_1",
+        ("switch", "dry_contact_NC1_manual_override"): "switch.load_1_manual_override",
+        ("select", "dry_contact_NC2_mode"): "select.load_2_mode",
+        ("number", "dry_contact_NC2_soc_low"): "number.load_2_cutoff_battery_level",
+        ("switch", "dry_contact_NO1"): f"switch.enphase_envoy_{controller}_relay_no1_relay_status",
+        ("switch", "dry_contact_NO2"): f"switch.enphase_envoy_{controller}_relay_no2_relay_status",
+        ("switch", "dry_contact_NO1_manual_override"): "switch.no1_manual_override",
+        ("select", "dry_contact_NO1_mode"): "select.mode",
+        ("select", "dry_contact_NO2_mode"): "select.mode_2",
+        ("select", "dry_contact_NO1_grid_action"): "select.grid_action",
+        ("select", "dry_contact_NO2_micro_grid_action"): "select.microgrid_action_2",
+        ("select", "dry_contact_NO2_gen_action"): "select.generator_action_2",
+        ("number", "dry_contact_NO1_soc_low"): f"number.envoy_{SERIAL}_cutoff_battery_level",
+        ("number", "dry_contact_NO2_soc_low"): f"number.envoy_{SERIAL}_cutoff_battery_level_2",
+        ("number", "dry_contact_NO1_soc_high"): "number.restore_battery_level",
+        ("number", "dry_contact_NO2_soc_high"): "number.restore_battery_level_2",
+    }
+    assert {key: _entity(hass, *key) for key in expected} == expected
 
 
 async def test_switch_confirms_on_a_quick_re_read(

@@ -1,7 +1,8 @@
 # Entity parity with the core integration
 
 Status: implemented, 2026-10-02. Checked against the core integration's own entity registry
-listing on the reference site (Home Assistant with pyenphase 4.0.3).
+listing on the reference site (Home Assistant with pyenphase 4.0.3). Section 3.4 (unnamed dry
+contacts) was added the same day.
 
 ## 1. Goal
 
@@ -89,6 +90,38 @@ Home Assistant applies a suggested unit and an enabled-by-default flag only when
 first registered. An existing installation keeps what it has; a new one, or one taking over
 core's entities, gets core's settings.
 
+### 3.4 Dry contacts without a load name
+
+Core names a contact's device after its load name. A contact with a load name already matched
+(`switch.load_1`, `select.load_1_mode`). With an empty load name, core's device has no name and
+its entity IDs come out of three Home Assistant rules:
+
+| Core entity | Entity ID | Why |
+|---|---|---|
+| Relay switch | `switch.enphase_envoy_<controller serial>_relay_<terminal>_relay_status` | No device name and no entity name, so Home Assistant falls back to the platform and unique ID |
+| Cutoff battery level | `number.envoy_<envoy serial>_cutoff_battery_level` | The first entity registered on the device. A new device with no name takes the config entry's title until the next entity clears it |
+| Restore battery level | `number.restore_battery_level` | Entity name only |
+| Mode and the three actions | `select.mode`, `select.grid_action`, `select.microgrid_action`, `select.generator_action` | Entity name only |
+
+All but the switch collide between unnamed contacts, and Home Assistant numbers them `_2`,
+`_3`, `_4`. Core registers each entity for all contacts in the order of the Envoy's
+`dry_contact_settings` list, which is the System Controller's terminal order (NC1, NC2, NO1,
+NO2). So the n-th unnamed contact in that list gets the suffix `_n`, and the first gets none.
+On the reference site, NC1 and NC2 are named, NO1 has no suffix and NO2 has `_2`.
+
+This integration keeps the device named after the terminal (`NO1`), so the names shown stay
+useful, and suggests core's entity ID for each of these seven entities
+(`core_unnamed_entity_id` in `dry_contact.py`). The manual override switch, which core doesn't
+have, keeps `switch.<terminal>_manual_override`.
+
+Limits:
+
+- The cutoff level's ID assumes core's entry had its default title, `Envoy <serial>`.
+- The suffix follows which contacts are unnamed now. Core's IDs date from when it was set up,
+  so a load name added or removed since then shifts them.
+- Home Assistant only takes a suggested ID when the entity is first registered. An installation
+  from before this change keeps `switch.no1`, `select.no1_mode` and so on.
+
 ## 4. Where a value has two sources
 
 Several core entities are backed by faster data here. One entity ID has one source, and the
@@ -130,13 +163,9 @@ maintenance controls; and each dry contact's manual override.
 
 ## 7. Known differences
 
-- **Unnamed dry contacts.** Core names a contact's device after its load name. With an empty
-  load name, core's entities have no device name and get IDs that depend on creation order
-  (`select.mode`, `select.mode_2`, `number.restore_battery_level_2`,
-  `switch.enphase_envoy_<serial>_relay_no1_relay_status`). This integration names such a
-  contact after its ID instead (`switch.no1`, `select.no1_mode`). Contacts with a load name
-  match core exactly (`switch.load_1`, `select.load_1_mode`). Reproducing core's IDs for
-  unnamed contacts would mean depending on creation order, so it isn't done.
+- **Unnamed dry contacts' device name.** The entity IDs match (3.4), but the device is named
+  after the terminal here and has no name in core, so an entity shows as "NO1 Mode" here and
+  "Mode" in core.
 - **Grid enabled** (`switch.enpower_<serial>_grid_enabled`) is only created with the grid relay
   option on ([core-integration.md](core-integration.md) section 6.3).
 - **Per-phase power from the stream** (`current_power_production_l1` and so on) is enabled by
@@ -151,9 +180,12 @@ maintenance controls; and each dry contact's manual override.
   power parsers against the reference captures, and synthetic payloads for each pyenphase rule
   in section 5.
 - `tests_ha/test_init.py`: `test_entity_ids_match_the_core_integration` builds core's full
-  entity ID list for the reference site (455 entities, without the dry contacts and Grid
-  enabled) and checks every one exists; other tests check enabled-by-default flags, categories,
+  entity ID list for the reference site (483 entities, all but Grid enabled) and checks every
+  one exists; other tests check enabled-by-default flags, categories,
   values, and setup with each new endpoint missing.
+- `tests_ha/test_dry_contacts.py`: `test_named_and_unnamed_contacts_take_core_ids` sets the
+  reference site's mix (NC1 and NC2 named, NO1 and NO2 not) and checks the IDs against core's
+  listing.
 - Three new fixtures: `production_details.json`, `ivp_ensemble_power.json`,
   `ivp_pdm_device_data.json` ([fixtures README](../../tests/fixtures/README.md)).
 
