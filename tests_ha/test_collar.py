@@ -82,13 +82,13 @@ async def test_devices(hass: HomeAssistant, entry: MockConfigEntry) -> None:
 
 
 async def test_status_sensors_are_primary(hass: HomeAssistant, entry: MockConfigEntry) -> None:
-    """Grid and MID state are what a collar owner watches; the rest is diagnostic."""
+    """Grid and MID state are what a collar owner watches; temperature is primary as in core."""
     registry = er.async_get(hass)
     for key, category in [
         ("admin_state", None),
         ("grid_status", None),
         ("mid_state", None),
-        ("temperature", EntityCategory.DIAGNOSTIC),
+        ("temperature", None),
         ("collar_state", EntityCategory.DIAGNOSTIC),
         ("control_error", EntityCategory.DIAGNOSTIC),
     ]:

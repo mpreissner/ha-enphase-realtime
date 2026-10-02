@@ -1,0 +1,10 @@
+{
+  "devices:": [
+    {
+      "serial_num": "900000000002",
+      "real_power_mw": 23000,
+      "apparent_power_mva": 23000,
+      "soc": 59
+    }
+  ]
+}

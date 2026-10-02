@@ -1,0 +1,1292 @@
+{
+  "553648384": {
+    "devName": "pcu",
+    "sn": "900000000004",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627390225,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2118215,
+          "joulesProduced": 125080425
+        }
+      }
+    ]
+  },
+  "553648640": {
+    "devName": "pcu",
+    "sn": "900000000005",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627390481,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2118313,
+          "joulesProduced": 124413975
+        }
+      }
+    ]
+  },
+  "553648896": {
+    "devName": "pcu",
+    "sn": "900000000006",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627390737,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2115432,
+          "joulesProduced": 122799600
+        }
+      }
+    ]
+  },
+  "553649152": {
+    "devName": "pcu",
+    "sn": "900000000007",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627390993,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2118234,
+          "joulesProduced": 122719500
+        }
+      }
+    ]
+  },
+  "553649408": {
+    "devName": "pcu",
+    "sn": "900000000008",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627391249,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2119238,
+          "joulesProduced": 124349175
+        }
+      }
+    ]
+  },
+  "553649664": {
+    "devName": "pcu",
+    "sn": "900000000009",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627391505,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2119337,
+          "joulesProduced": 120146850
+        }
+      }
+    ]
+  },
+  "553649920": {
+    "devName": "pcu",
+    "sn": "900000000010",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627391761,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2115325,
+          "joulesProduced": 123068475
+        }
+      }
+    ]
+  },
+  "553650176": {
+    "devName": "pcu",
+    "sn": "900000000011",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627392017,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2119911,
+          "joulesProduced": 95699925
+        }
+      }
+    ]
+  },
+  "553650432": {
+    "devName": "pcu",
+    "sn": "900000000012",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627392273,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2118962,
+          "joulesProduced": 95319675
+        }
+      }
+    ]
+  },
+  "553650688": {
+    "devName": "pcu",
+    "sn": "900000000013",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627392529,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2118719,
+          "joulesProduced": 95648850
+        }
+      }
+    ]
+  },
+  "553650944": {
+    "devName": "pcu",
+    "sn": "900000000014",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627392785,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2119126,
+          "joulesProduced": 95353425
+        }
+      }
+    ]
+  },
+  "553651200": {
+    "devName": "pcu",
+    "sn": "900000000015",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627393041,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2114599,
+          "joulesProduced": 94575600
+        }
+      }
+    ]
+  },
+  "553651456": {
+    "devName": "pcu",
+    "sn": "900000000016",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627393297,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2118214,
+          "joulesProduced": 90146925
+        }
+      }
+    ]
+  },
+  "553651712": {
+    "devName": "pcu",
+    "sn": "900000000017",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627393553,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 12834,
+          "joulesProduced": 2165400
+        }
+      }
+    ]
+  },
+  "553651968": {
+    "devName": "pcu",
+    "sn": "900000000018",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627393809,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2117990,
+          "joulesProduced": 94374000
+        }
+      }
+    ]
+  },
+  "553652224": {
+    "devName": "pcu",
+    "sn": "900000000029",
+    "active": false,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627394065,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "553652480": {
+    "devName": "pcu",
+    "sn": "900000000030",
+    "active": false,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627394321,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "553652736": {
+    "devName": "pcu",
+    "sn": "900000000031",
+    "active": false,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627394577,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "553652992": {
+    "devName": "pcu",
+    "sn": "900000000032",
+    "active": false,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627394833,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "553653248": {
+    "devName": "pcu",
+    "sn": "900000000033",
+    "active": false,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627395089,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "553653504": {
+    "devName": "pcu",
+    "sn": "900000000034",
+    "active": false,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627395345,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "553653760": {
+    "devName": "pcu",
+    "sn": "900000000035",
+    "active": false,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627395601,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "553654016": {
+    "devName": "pcu",
+    "sn": "900000000036",
+    "active": false,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627395857,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "553654272": {
+    "devName": "pcu",
+    "sn": "900000000037",
+    "active": false,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627396113,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "553654528": {
+    "devName": "pcu",
+    "sn": "900000000038",
+    "active": false,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627396369,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "553654784": {
+    "devName": "pcu",
+    "sn": "900000000019",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627396625,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2102862,
+          "joulesProduced": 121617000
+        }
+      }
+    ]
+  },
+  "553655040": {
+    "devName": "pcu",
+    "sn": "900000000020",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627396881,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2102452,
+          "joulesProduced": 120922875
+        }
+      }
+    ]
+  },
+  "553655296": {
+    "devName": "pcu",
+    "sn": "900000000021",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627397137,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2103194,
+          "joulesProduced": 121123125
+        }
+      }
+    ]
+  },
+  "553655552": {
+    "devName": "pcu",
+    "sn": "900000000022",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627397393,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2103806,
+          "joulesProduced": 92729925
+        }
+      }
+    ]
+  },
+  "553655808": {
+    "devName": "pcu",
+    "sn": "900000000023",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627397649,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2102445,
+          "joulesProduced": 120883500
+        }
+      }
+    ]
+  },
+  "553656064": {
+    "devName": "pcu",
+    "sn": "900000000024",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627397905,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2104036,
+          "joulesProduced": 92769750
+        }
+      }
+    ]
+  },
+  "553656320": {
+    "devName": "pcu",
+    "sn": "900000000025",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627398161,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2103642,
+          "joulesProduced": 92814525
+        }
+      }
+    ]
+  },
+  "553656576": {
+    "devName": "pcu",
+    "sn": "900000000026",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627398417,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2102725,
+          "joulesProduced": 91840275
+        }
+      }
+    ]
+  },
+  "553656832": {
+    "devName": "pcu",
+    "sn": "900000000027",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627398673,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2102959,
+          "joulesProduced": 93603150
+        }
+      }
+    ]
+  },
+  "553657088": {
+    "devName": "pcu",
+    "sn": "900000000028",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1627398929,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2102914,
+          "joulesProduced": 119353275
+        }
+      }
+    ]
+  },
+  "704643328": {
+    "devName": "eim",
+    "sn": "900000000001EIM1",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1778385169,
+        "created": 1790070300,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 371087
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {
+          "eid": 1778385169,
+          "interval_type": 0,
+          "endDate": 1790070300,
+          "duration": 900,
+          "curr_w": 0,
+          "wh_dlvd_cum": 371087,
+          "varh_lead_cum": 39,
+          "varh_lag_cum": 71446,
+          "vah_cum": 447970,
+          "rms_mvolt": 121822,
+          "rms_mamp": 71,
+          "freq_mhz": 60000,
+          "wh_pos": 371087,
+          "wh_neg": 0
+        },
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2748600,
+          "wh_dlvd_cum": 371087,
+          "varh_lead_cum": 39,
+          "varh_lag_cum": 71446,
+          "vah_cum": 447970
+        }
+      },
+      {
+        "chanEid": 1778385170,
+        "created": 1790070300,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 371757
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {
+          "eid": 1778385170,
+          "interval_type": 0,
+          "endDate": 1790070300,
+          "duration": 900,
+          "curr_w": 0,
+          "wh_dlvd_cum": 371757,
+          "varh_lead_cum": 97,
+          "varh_lag_cum": 71281,
+          "vah_cum": 450709,
+          "rms_mvolt": 121536,
+          "rms_mamp": 116,
+          "freq_mhz": 60000,
+          "wh_pos": 371757,
+          "wh_neg": 0
+        },
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2748600,
+          "wh_dlvd_cum": 371757,
+          "varh_lead_cum": 97,
+          "varh_lag_cum": 71281,
+          "vah_cum": 450709
+        }
+      },
+      {
+        "chanEid": 1778385171,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      },
+      {
+        "chanEid": 1778385172,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "704643584": {
+    "devName": "eim",
+    "sn": "900000000001EIM2",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1778385425,
+        "created": 1790070300,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 483,
+          "nowUsed": 0,
+          "max": 483
+        },
+        "lastReading": {
+          "eid": 1778385425,
+          "interval_type": 0,
+          "endDate": 1790070300,
+          "duration": 900,
+          "curr_w": 483,
+          "wh_dlvd_cum": 661313,
+          "varh_lead_cum": 456581,
+          "varh_lag_cum": -71425,
+          "vah_cum": 893430,
+          "rms_mvolt": 121839,
+          "rms_mamp": 5761,
+          "freq_mhz": 60000,
+          "wh_pos": 484440,
+          "wh_neg": 193566
+        },
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2747100,
+          "wh_dlvd_cum": 661313,
+          "varh_lead_cum": 456581,
+          "varh_lag_cum": -71425,
+          "vah_cum": 893430
+        }
+      },
+      {
+        "chanEid": 1778385426,
+        "created": 1790070300,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 991,
+          "nowUsed": 0,
+          "max": 991
+        },
+        "lastReading": {
+          "eid": 1778385426,
+          "interval_type": 0,
+          "endDate": 1790070300,
+          "duration": 900,
+          "curr_w": 991,
+          "wh_dlvd_cum": 772129,
+          "varh_lead_cum": 388089,
+          "varh_lag_cum": -70191,
+          "vah_cum": 938401,
+          "rms_mvolt": 121537,
+          "rms_mamp": 10466,
+          "freq_mhz": 60000,
+          "wh_pos": 578569,
+          "wh_neg": 177678
+        },
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2747100,
+          "wh_dlvd_cum": 772129,
+          "varh_lead_cum": 388089,
+          "varh_lag_cum": -70191,
+          "vah_cum": 938401
+        }
+      },
+      {
+        "chanEid": 1778385427,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      },
+      {
+        "chanEid": 1778385428,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "704643840": {
+    "devName": "eim",
+    "sn": "900000000001EIM4",
+    "active": true,
+    "modGone": true,
+    "channels": [
+      {
+        "chanEid": 1778385681,
+        "created": 1790070300,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {
+          "eid": 1778385681,
+          "interval_type": 0,
+          "endDate": 1790070300,
+          "duration": 900,
+          "curr_w": 0,
+          "wh_dlvd_cum": -6456,
+          "varh_lead_cum": 5,
+          "varh_lag_cum": 45819,
+          "vah_cum": 61090,
+          "rms_mvolt": 121546,
+          "rms_mamp": 104,
+          "freq_mhz": 60000,
+          "wh_pos": 312,
+          "wh_neg": 6769
+        },
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2744100,
+          "wh_dlvd_cum": -6456,
+          "varh_lead_cum": 5,
+          "varh_lag_cum": 45819,
+          "vah_cum": 61090
+        }
+      },
+      {
+        "chanEid": 1778385682,
+        "created": 1790070300,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {
+          "eid": 1778385682,
+          "interval_type": 0,
+          "endDate": 1790070300,
+          "duration": 900,
+          "curr_w": 0,
+          "wh_dlvd_cum": -6464,
+          "varh_lead_cum": 5,
+          "varh_lag_cum": 45776,
+          "vah_cum": 61033,
+          "rms_mvolt": 121546,
+          "rms_mamp": 104,
+          "freq_mhz": 60000,
+          "wh_pos": 312,
+          "wh_neg": 6777
+        },
+        "lifetime": {
+          "createdTime": 0,
+          "duration": 2744100,
+          "wh_dlvd_cum": -6464,
+          "varh_lead_cum": 5,
+          "varh_lag_cum": 45776,
+          "vah_cum": 61033
+        }
+      },
+      {
+        "chanEid": 1778385683,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      },
+      {
+        "chanEid": 1778385684,
+        "created": 0,
+        "wattHours": {
+          "today": 0,
+          "yesterday": 0,
+          "week": 0
+        },
+        "watts": {
+          "now": 0,
+          "nowUsed": 0,
+          "max": 0
+        },
+        "lastReading": {},
+        "lifetime": {}
+      }
+    ]
+  },
+  "deviceCount": 38,
+  "deviceDataLimit": 50
+}

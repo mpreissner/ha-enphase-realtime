@@ -20,11 +20,14 @@ from homeassistant.const import (
     ATTR_UNIT_OF_MEASUREMENT,
     PERCENTAGE,
     EntityCategory,
+    UnitOfApparentPower,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfEnergy,
     UnitOfFrequency,
     UnitOfPower,
+    UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
@@ -55,7 +58,17 @@ from .entity import (
     child_device,
     envoy_device,
 )
-from .envoy_client.models import LivePower, PhaseLayout, StreamFrame, StreamMeter
+from .envoy_client.models import (
+    CtReading,
+    EnergyTotals,
+    InverterDetail,
+    LivePower,
+    PhaseLayout,
+    ProductionReport,
+    StreamFrame,
+    StreamMeter,
+    metered_phases,
+)
 from .overhead import Overhead, to_watts
 
 _LOGGER = logging.getLogger(__name__)
@@ -81,6 +94,54 @@ def _power(
         value_fn=value_fn,
         **kw,
     )
+
+
+def _core_power(name: str, value_fn: Callable[[Any], Any], **kw: Any) -> EnphaseSensorDescription:
+    """A power sensor the core integration also has, with its unit and precision, so the
+    statistics carry on in the same unit after a move."""
+    return EnphaseSensorDescription(
+        key=_key(name),
+        name=name,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfPower.WATT,
+        suggested_unit_of_measurement=UnitOfPower.KILO_WATT,
+        suggested_display_precision=3,
+        value_fn=value_fn,
+        **kw,
+    )
+
+
+def _core_energy(name: str, value_fn: Callable[[Any], Any], **kw: Any) -> EnphaseSensorDescription:
+    """An energy counter the core integration also has. `kw` overrides its usual attributes."""
+    attributes: dict[str, Any] = {
+        "state_class": SensorStateClass.TOTAL_INCREASING,
+        "suggested_unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
+        "suggested_display_precision": 2,
+    }
+    return EnphaseSensorDescription(
+        key=_key(name),
+        name=name,
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+        value_fn=value_fn,
+        **(attributes | kw),
+    )
+
+
+def _lifetime(name: str, value_fn: Callable[[Any], Any], **kw: Any) -> EnphaseSensorDescription:
+    return _core_energy(
+        name,
+        value_fn,
+        suggested_unit_of_measurement=UnitOfEnergy.MEGA_WATT_HOUR,
+        suggested_display_precision=3,
+        **kw,
+    )
+
+
+def _suffix(phase: str | None) -> str:
+    """The core integration's per-phase name suffix: ` L1` for `ph-a`, nothing for the total."""
+    return f" {PHASE_NAMES[phase]}" if phase else ""
 
 
 def _k(phase: str) -> str:
@@ -118,15 +179,11 @@ def _stream_sensors(layout: PhaseLayout) -> list[EnphaseSensorDescription]:
     out: list[EnphaseSensorDescription] = []
     for attr, name, ct in _STREAM_METERS:
         meter = _stream_meter(attr)
-        out.append(_power(_key(name), name, lambda f, m=meter: m(f).power))
+        out.append(_core_power(name, lambda f, m=meter: m(f).power))
         for ph in layout.phases:
             phase = PHASE_NAMES[ph]
             out.append(
-                _power(
-                    _key(f"{name} {phase}"),
-                    f"{name} {phase}",
-                    lambda f, m=meter, ph=ph: m(f).phases[ph].power,
-                )
+                _core_power(f"{name} {phase}", lambda f, m=meter, ph=ph: m(f).phases[ph].power)
             )
             current = f"{ct[0].upper()}{ct[1:]} current {phase}"
             out.append(
@@ -136,7 +193,7 @@ def _stream_sensors(layout: PhaseLayout) -> list[EnphaseSensorDescription]:
                     device_class=SensorDeviceClass.CURRENT,
                     state_class=SensorStateClass.MEASUREMENT,
                     native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
-                    suggested_display_precision=2,
+                    suggested_display_precision=3,
                     entity_registry_enabled_default=False,
                     value_fn=lambda f, m=meter, ph=ph: m(f).phases[ph].current,
                 )
@@ -178,7 +235,7 @@ def _stream_sensors(layout: PhaseLayout) -> list[EnphaseSensorDescription]:
             device_class=SensorDeviceClass.FREQUENCY,
             state_class=SensorStateClass.MEASUREMENT,
             native_unit_of_measurement=UnitOfFrequency.HERTZ,
-            suggested_display_precision=2,
+            suggested_display_precision=1,
             entity_registry_enabled_default=False,
             value_fn=lambda f: net(f).phases["ph-a"].frequency,
         )
@@ -235,13 +292,7 @@ def _live_sensors(
     if has_battery:
         storage = _live("storage")
         # Raw Envoy sign: positive is discharging (spec 5.1), as the core integration's.
-        out.append(
-            _power(
-                "current_battery_discharge",
-                "Current battery discharge",
-                lambda d: storage(d).power,
-            )
-        )
+        out.append(_core_power("Current battery discharge", lambda d: storage(d).power))
     return out
 
 
@@ -250,13 +301,16 @@ def _live_sensors(
 
 def _fast_sensors() -> list[EnphaseSensorDescription]:
     def energy(
-        key: str, name: str, value_fn: Callable[[FastData], Any]
+        key: str,
+        name: str,
+        value_fn: Callable[[FastData], Any],
+        state_class: SensorStateClass | None = SensorStateClass.MEASUREMENT,
     ) -> EnphaseSensorDescription:
         return EnphaseSensorDescription(
             key=key,
             name=name,
             device_class=SensorDeviceClass.ENERGY_STORAGE,
-            state_class=SensorStateClass.MEASUREMENT,
+            state_class=state_class,
             native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
             value_fn=value_fn,
         )
@@ -283,7 +337,8 @@ def _fast_sensors() -> list[EnphaseSensorDescription]:
             "Available battery energy",
             lambda d: d.secctrl.available_energy,
         ),
-        energy("battery_capacity", "Battery capacity", lambda d: d.secctrl.max_energy),
+        # A rating, not a measurement: no statistics, as in the core integration.
+        energy("battery_capacity", "Battery capacity", lambda d: d.secctrl.max_energy, None),
         energy(
             "reserve_battery_energy", "Reserve battery energy", lambda d: d.schedule.reserve_energy
         ),
@@ -303,6 +358,7 @@ def _fast_sensors() -> list[EnphaseSensorDescription]:
             "reserve_battery_level",
             "Reserve battery level",
             lambda d: d.secctrl.adjusted_backup_soc,
+            device_class=SensorDeviceClass.BATTERY,
         ),
         percent(
             "configured_reserve_battery_level",
@@ -334,27 +390,236 @@ _LIFETIME = (
 def _lifetime_sensors(data: SlowData) -> list[EnphaseSensorDescription]:
     """Only the counters whose meter is enabled (spec 5.2)."""
     return [
-        EnphaseSensorDescription(
-            key=_key(name),
-            name=name,
-            device_class=SensorDeviceClass.ENERGY,
-            state_class=SensorStateClass.TOTAL_INCREASING,
-            native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
-            suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-            value_fn=lambda d, a=attr: getattr(d.energy, a),
-        )
+        _lifetime(name, lambda d, a=attr: getattr(d.energy, a))
         for attr, name in _LIFETIME
         if getattr(data.energy, attr) is not None
     ]
 
 
-def _last_reported(value_fn: Callable[[SlowData], Any]) -> EnphaseSensorDescription:
+# --- The core integration's other Envoy sensors (docs/specs/core-entity-parity.md) --------------
+
+
+def _report_sensors(
+    report: ProductionReport | None, data: SlowData
+) -> list[EnphaseSensorDescription]:
+    """Production, consumption and balanced net consumption from `/production.json`, with the
+    core integration's rules for which exist. `report` is the one read at setup."""
+    phases = metered_phases(data.meters)
+    if report is not None:
+        consumption, net = report.has_consumption, report.has_net_consumption
+        if not report.active_phase_count:
+            phases = ()
+    else:
+        # The read failed at setup: go by the CTs, and stay unavailable until it works.
+        consumption = net = any(
+            m.enabled and m.measurement_type in ("net-consumption", "total-consumption")
+            for m in data.meters
+        )
+
+    def totals(section: str, ph: str | None) -> Callable[[SlowData], EnergyTotals | None]:
+        def read(d: SlowData) -> EnergyTotals | None:
+            current = _required(d.production, "production report")
+            if ph is None:
+                return getattr(current, section)
+            return getattr(current, f"{section}_phases").get(ph)
+
+        return read
+
+    def value(section: str, ph: str | None, field: str) -> Callable[[SlowData], int | None]:
+        read = totals(section, ph)
+        return lambda d: getattr(read(d), field, None)
+
+    out: list[EnphaseSensorDescription] = []
+    for ph in (None, *phases):
+        # Per-phase sensors start disabled, as in the core integration.
+        on = ph is None
+        for section, what in (("production", "production"), ("consumption", "consumption")):
+            if section == "consumption" and not consumption:
+                continue
+            out += [
+                _core_power(
+                    f"Current power {what}{_suffix(ph)}",
+                    value(section, ph, "power"),
+                    entity_registry_enabled_default=on,
+                ),
+                _core_energy(
+                    f"Energy {what} today{_suffix(ph)}",
+                    value(section, ph, "energy_today"),
+                    entity_registry_enabled_default=on,
+                ),
+                # A sliding window: no statistics.
+                _core_energy(
+                    f"Energy {what} last seven days{_suffix(ph)}",
+                    value(section, ph, "energy_last_seven_days"),
+                    state_class=None,
+                    suggested_display_precision=1,
+                    entity_registry_enabled_default=on,
+                ),
+                _lifetime(
+                    f"Lifetime energy {what}{_suffix(ph)}",
+                    value(section, ph, "energy_lifetime"),
+                    entity_registry_enabled_default=on,
+                ),
+            ]
+        if net:
+            out += [
+                _core_power(
+                    f"Balanced net power consumption{_suffix(ph)}",
+                    value("net_consumption", ph, "power"),
+                    entity_registry_enabled_default=False,
+                ),
+                _core_energy(
+                    f"Lifetime balanced net energy consumption{_suffix(ph)}",
+                    value("net_consumption", ph, "energy_lifetime"),
+                    state_class=SensorStateClass.TOTAL,
+                    suggested_display_precision=3,
+                    entity_registry_enabled_default=False,
+                ),
+            ]
+    return out
+
+
+# Per CT type: the core integration's names for energy delivered, energy received and power,
+# and how it refers to the CT in the other names.
+_CT_NAMES = {
+    "net-consumption": (
+        "Lifetime net energy consumption",
+        "Lifetime net energy production",
+        "Current net power consumption",
+        "net consumption CT",
+    ),
+    "production": (
+        "Production CT energy delivered",
+        "Production CT energy received",
+        "Production CT power",
+        "production CT",
+    ),
+    "storage": (
+        "Lifetime battery energy discharged",
+        "Lifetime battery energy charged",
+        "Current battery discharge",
+        "storage CT",
+    ),
+    **{
+        ct_type: (f"{label} energy delivered", f"{label} energy received", f"{label} power", ct)
+        for ct_type, label, ct in (
+            ("total-consumption", "Total consumption CT", "total consumption CT"),
+            ("backfeed", "Backfeed CT", "backfeed CT"),
+            ("load", "Load CT", "load CT"),
+            ("evse", "EVSE CT", "EVSE CT"),
+            ("pv3p", "PV3P CT", "PV3P CT"),
+        )
+    },
+}
+
+METERING_STATUSES = ["normal", "not-metering", "check-wiring"]
+
+
+def _ct_sensors(data: SlowData) -> list[EnphaseSensorDescription]:
+    """Every reading of every enabled CT, as a total and per phase. Only the totals' energy and
+    power start enabled."""
+
+    def value(ct_type: str, ph: str | None, read: Callable[[CtReading], Any]):
+        def get(d: SlowData) -> Any:
+            meter = d.ct_meters.get(ct_type)
+            if meter is None:
+                return None
+            reading = meter.total if ph is None else meter.phases.get(ph)
+            # None where the firmware's reading can't be trusted (models.parse_ct_meters).
+            return read(reading) if reading is not None else None
+
+        return get
+
+    out: list[EnphaseSensorDescription] = []
+    for ct_type, meter in data.ct_meters.items():
+        if ct_type not in _CT_NAMES:
+            continue
+        delivered, received, power, ct = _CT_NAMES[ct_type]
+        for ph in (None, *meter.phases):
+            suffix = _suffix(ph)
+            on = ph is None
+
+            def measurement(name: str, read: Callable[[CtReading], Any], **kw: Any):
+                return EnphaseSensorDescription(
+                    key=_key(name),
+                    name=name,
+                    state_class=SensorStateClass.MEASUREMENT,
+                    entity_registry_enabled_default=False,
+                    value_fn=value(ct_type, ph, read),  # noqa: B023
+                    **kw,
+                )
+
+            out += [
+                _lifetime(
+                    f"{delivered}{suffix}",
+                    value(ct_type, ph, lambda r: r.energy_delivered),
+                    entity_registry_enabled_default=on,
+                ),
+                _lifetime(
+                    f"{received}{suffix}",
+                    value(ct_type, ph, lambda r: r.energy_received),
+                    entity_registry_enabled_default=on,
+                ),
+                _core_power(
+                    f"{power}{suffix}",
+                    value(ct_type, ph, lambda r: r.active_power),
+                    entity_registry_enabled_default=on,
+                ),
+                measurement(
+                    f"Frequency {ct}{suffix}",
+                    lambda r: r.frequency,
+                    device_class=SensorDeviceClass.FREQUENCY,
+                    native_unit_of_measurement=UnitOfFrequency.HERTZ,
+                    suggested_display_precision=1,
+                ),
+                measurement(
+                    f"Voltage {ct}{suffix}",
+                    lambda r: r.voltage,
+                    device_class=SensorDeviceClass.VOLTAGE,
+                    native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+                    suggested_display_precision=1,
+                ),
+                measurement(
+                    f"{ct[0].upper()}{ct[1:]} current{suffix}",
+                    lambda r: r.current,
+                    device_class=SensorDeviceClass.CURRENT,
+                    native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+                    suggested_display_precision=3,
+                ),
+                measurement(
+                    f"Power factor {ct}{suffix}",
+                    lambda r: r.power_factor,
+                    device_class=SensorDeviceClass.POWER_FACTOR,
+                    suggested_display_precision=2,
+                ),
+                EnphaseSensorDescription(
+                    key=_key(f"Metering status {ct}{suffix}"),
+                    name=f"Metering status {ct}{suffix}",
+                    device_class=SensorDeviceClass.ENUM,
+                    options=METERING_STATUSES,
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                    entity_registry_enabled_default=False,
+                    value_fn=value(ct_type, ph, lambda r: r.metering_status),
+                ),
+                # How many flags are raised; firmware that sends none counts as zero.
+                EnphaseSensorDescription(
+                    key=_key(f"Meter status flags active {ct}{suffix}"),
+                    name=f"Meter status flags active {ct}{suffix}",
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                    entity_registry_enabled_default=False,
+                    value_fn=value(ct_type, ph, lambda r: len(r.status_flags or ())),
+                ),
+            ]
+    return out
+
+
+def _last_reported(value_fn: Callable[[SlowData], Any], **kw: Any) -> EnphaseSensorDescription:
     return EnphaseSensorDescription(
         key="last_reported",
         name="Last reported",
         device_class=SensorDeviceClass.TIMESTAMP,
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=value_fn,
+        **kw,
     )
 
 
@@ -403,6 +668,31 @@ def _battery_sensors(serial: str) -> list[EnphaseSensorDescription]:
     ]
 
 
+def _battery_power_sensors(serial: str) -> list[EnphaseSensorDescription]:
+    """Named by their device classes, "Power" and "Apparent power", as in the core
+    integration."""
+
+    def power(d: SlowData):
+        return _required(d.battery_power, "battery power")[serial]
+
+    return [
+        EnphaseSensorDescription(
+            key="power",
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement=UnitOfPower.WATT,
+            value_fn=lambda d: power(d).power,
+        ),
+        EnphaseSensorDescription(
+            key="apparent_power",
+            device_class=SensorDeviceClass.APPARENT_POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement=UnitOfApparentPower.VOLT_AMPERE,
+            value_fn=lambda d: power(d).apparent_power,
+        ),
+    ]
+
+
 def _controller_sensors(serial: str) -> list[EnphaseSensorDescription]:
     def controller(d: SlowData):
         return by_serial(_required(d.inventory, "inventory").system_controllers, serial)
@@ -413,7 +703,6 @@ def _controller_sensors(serial: str) -> list[EnphaseSensorDescription]:
             "Temperature",
             ENPOWER_TEMPERATURE_UNIT,
             lambda d: controller(d).temperature,
-            entity_category=EntityCategory.DIAGNOSTIC,
         ),
         _last_reported(lambda d: controller(d).last_report),
     ]
@@ -442,7 +731,6 @@ def _collar_sensors(serial: str) -> list[EnphaseSensorDescription]:
             "Temperature",
             COLLAR_TEMPERATURE_UNIT,
             lambda d: collar(d).temperature,
-            entity_category=EntityCategory.DIAGNOSTIC,
         ),
         _last_reported(lambda d: collar(d).last_report),
         # Names and values as in the core integration. It notes that going off grid shows in
@@ -480,14 +768,138 @@ def _inverter_sensors(serial: str) -> list[EnphaseSensorDescription]:
     def inverter(d: SlowData):
         return by_serial(d.inverters, serial)
 
-    return [
-        _power(
-            "power",
-            None,
-            lambda d: inverter(d).last_report_watts,
+    def detail(read: Callable[[InverterDetail], Any]) -> Callable[[SlowData], Any]:
+        """Unknown, not unavailable, where the Envoy has no detail for the inverter."""
+
+        def get(d: SlowData) -> Any:
+            found = (d.inverter_details or {}).get(serial)
+            return read(found) if found is not None else None
+
+        return get
+
+    def measurement(
+        key: str,
+        name: str | None,
+        device_class: SensorDeviceClass,
+        unit: str,
+        value_fn: Callable[[SlowData], Any],
+        **kw: Any,
+    ) -> EnphaseSensorDescription:
+        return EnphaseSensorDescription(
+            key=key,
+            name=name,
+            device_class=device_class,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement=unit,
             entity_registry_enabled_default=False,
+            value_fn=value_fn,
+            **kw,
+        )
+
+    volt, ampere = UnitOfElectricPotential.VOLT, UnitOfElectricCurrent.AMPERE
+    voltage, current = SensorDeviceClass.VOLTAGE, SensorDeviceClass.CURRENT
+    diagnostic = EntityCategory.DIAGNOSTIC
+    # Everything but the power starts disabled, as in the core integration.
+    return [
+        _power("power", None, lambda d: inverter(d).last_report_watts),
+        measurement(
+            "dc_voltage",
+            "DC voltage",
+            voltage,
+            volt,
+            detail(lambda i: i.dc_voltage),
+            suggested_display_precision=3,
         ),
-        _last_reported(lambda d: inverter(d).last_report),
+        measurement(
+            "dc_current",
+            "DC current",
+            current,
+            ampere,
+            detail(lambda i: i.dc_current),
+            suggested_display_precision=3,
+        ),
+        measurement(
+            "ac_voltage",
+            "AC voltage",
+            voltage,
+            volt,
+            detail(lambda i: i.ac_voltage),
+            suggested_display_precision=3,
+        ),
+        measurement(
+            "ac_current",
+            "AC current",
+            current,
+            ampere,
+            detail(lambda i: i.ac_current),
+            suggested_display_precision=3,
+        ),
+        # The next two are named by their device classes.
+        EnphaseSensorDescription(
+            key="frequency",
+            device_class=SensorDeviceClass.FREQUENCY,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement=UnitOfFrequency.HERTZ,
+            suggested_display_precision=3,
+            entity_registry_enabled_default=False,
+            value_fn=detail(lambda i: i.ac_frequency),
+        ),
+        EnphaseSensorDescription(
+            key="temperature",
+            device_class=SensorDeviceClass.TEMPERATURE,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+            suggested_display_precision=3,
+            entity_category=diagnostic,
+            entity_registry_enabled_default=False,
+            value_fn=detail(lambda i: i.temperature),
+        ),
+        EnphaseSensorDescription(
+            key="lifetime_energy_production",
+            name="Lifetime energy production",
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+            native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+            suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            entity_registry_enabled_default=False,
+            value_fn=detail(lambda i: i.lifetime_energy),
+        ),
+        EnphaseSensorDescription(
+            key="energy_production_today",
+            name="Energy production today",
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+            native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+            entity_registry_enabled_default=False,
+            value_fn=detail(lambda i: i.energy_today),
+        ),
+        measurement(
+            "last_report_duration",
+            "Last report duration",
+            SensorDeviceClass.DURATION,
+            UnitOfTime.SECONDS,
+            detail(lambda i: i.last_report_duration),
+            entity_category=diagnostic,
+        ),
+        EnphaseSensorDescription(
+            key="energy_production_since_previous_report",
+            name="Energy production since previous report",
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL,
+            native_unit_of_measurement=UnitOfEnergy.MILLIWATT_HOUR,
+            suggested_display_precision=3,
+            entity_registry_enabled_default=False,
+            value_fn=detail(lambda i: i.energy_produced),
+        ),
+        measurement(
+            "lifetime_maximum_power",
+            "Lifetime maximum power",
+            SensorDeviceClass.POWER,
+            UnitOfPower.WATT,
+            lambda d: inverter(d).max_report_watts,
+            entity_category=diagnostic,
+        ),
+        _last_reported(lambda d: inverter(d).last_report, entity_registry_enabled_default=False),
     ]
 
 
@@ -727,12 +1139,19 @@ async def async_setup_entry(
     envoy = envoy_device(rt.serial, rt.firmware)
     entities: list[SensorEntity] = []
 
+    # Envoy sensor keys already taken. The same reading can come from more than one source; the
+    # first to offer it wins, and the sources are added fastest first.
+    taken: set[str] = set()
+
     def add(
         coordinator: DataUpdateCoordinator[Any],
         descriptions: list[EnphaseSensorDescription] | tuple[EnphaseSensorDescription, ...],
         device: DeviceInfo,
         prefix: str,
     ) -> None:
+        if prefix == rt.serial:
+            descriptions = [d for d in descriptions if d.key not in taken]
+            taken.update(d.key for d in descriptions)
         entities.extend(EnphaseSensor(coordinator, d, device, prefix) for d in descriptions)
 
     if rt.stream is not None:
@@ -748,12 +1167,18 @@ async def async_setup_entry(
 
     slow = rt.slow.data
     add(rt.slow, _lifetime_sensors(slow), envoy, rt.serial)
+    add(rt.slow, _report_sensors(slow.production, slow), envoy, rt.serial)
+    add(rt.slow, _ct_sensors(slow), envoy, rt.serial)
     add(rt.slow, _installer_sensors(slow), envoy, rt.serial)
     if slow.inventory is not None:
         for battery in slow.inventory.batteries:
+            descriptions = _battery_sensors(battery.serial)
+            # As the core integration: only for the batteries the Envoy reports power for.
+            if battery.serial in (slow.battery_power or {}):
+                descriptions += _battery_power_sensors(battery.serial)
             add(
                 rt.slow,
-                _battery_sensors(battery.serial),
+                descriptions,
                 child_device(IQ_BATTERY, battery.serial, rt.envoy_device_id),
                 battery.serial,
             )

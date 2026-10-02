@@ -13,11 +13,13 @@ import aiohttp
 
 from .errors import EnvoyAuthError, EnvoyConnectionError, EnvoyParseError, EnvoyStreamUnavailable
 from .models import (
+    BatteryPower,
     DryContactSettings,
     EnvoyInfo,
     ExportLimit,
     Inventory,
     Inverter,
+    InverterDetail,
     LiveData,
     Meter,
     PcsSettings,
@@ -197,6 +199,16 @@ class EnvoyClient:
 
     async def inverters(self) -> list[Inverter]:
         return Inverter.parse_list(await self.get_json("/api/v1/production/inverters"))
+
+    async def inverter_details(self) -> dict[str, InverterDetail]:
+        return InverterDetail.parse_dict(await self.get_json("/ivp/pdm/device_data", SLOW_TIMEOUT))
+
+    async def production_report(self) -> Any:
+        """Raw; `ProductionReport.from_payload` needs it together with meters."""
+        return await self.get_json("/production.json?details=1", SLOW_TIMEOUT)
+
+    async def battery_power(self) -> dict[str, BatteryPower]:
+        return BatteryPower.parse_dict(await self.get_json("/ivp/ensemble/power"))
 
     # --- stream ---------------------------------------------------------------------------------
 
