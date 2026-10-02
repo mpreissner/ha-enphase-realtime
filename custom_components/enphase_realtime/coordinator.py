@@ -24,6 +24,7 @@ from .const import (
     DRY_CONTACT_POLL,
     LIVE_FAILURES_BEFORE_UNAVAILABLE,
     LIVE_STAMP_LOG_AFTER,
+    PRODUCTION_REPORT_MAX_AGE,
     SC_STREAM_ENABLE_COOLDOWN,
     SLOW_INTERVAL,
     STREAM_STALE_AFTER,
@@ -279,6 +280,11 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
         # written). Later writes lay them over the Envoy's object (docs/specs/dry-contacts.md 5).
         self._written: dict[str, dict[str, tuple[Any, float]]] = {}
         self._contact_poll_busy = False
+        # `/production.json` can take most of a minute, so only the first poll waits for it.
+        # After that it's read in the background and the poll uses the last payload, kept here
+        # with when it was read.
+        self._report: tuple[Any, float] | None = None
+        self._report_task: asyncio.Task[None] | None = None
 
     async def refresh_dry_contacts(self) -> None:
         """Re-read just the dry contacts, for a control waiting on a write. Raises the client's
@@ -320,6 +326,28 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
         if data != self.data:
             self.data = data
             self.async_update_listeners()
+
+    async def _read_report(self) -> None:
+        """Read `/production.json` and publish it. A failed read keeps the last report."""
+        started = time.monotonic()
+        try:
+            payload = await self.client.production_report()
+        except EnvoyError as err:
+            _LOGGER.debug("Skipping an optional read: %s", err)
+            return
+        now = time.monotonic()
+        _LOGGER.debug("Read the production report in %.1f s", now - started)
+        self._report = (payload, now)
+        if self.data is not None:
+            self._push(replace(self.data, production=self._production(self.data.meters)))
+
+    def _production(self, meters: list[Meter]) -> ProductionReport | None:
+        if self._report is None:
+            return None
+        payload, when = self._report
+        if time.monotonic() - when > PRODUCTION_REPORT_MAX_AGE.total_seconds():
+            return None
+        return _parsed(lambda: ProductionReport.from_payload(payload, meters, self._firmware))
 
     def _log_contact_changes(self, states: dict[str, bool]) -> None:
         old = self.data.dry_contact_states if self.data is not None else {}
@@ -385,9 +413,9 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
                 inverters,
                 export_limit,
                 pcs,
-                report,
                 battery_power,
                 inverter_details,
+                _,
             ) = await asyncio.gather(
                 c.meters(),
                 c.meter_readings(),
@@ -398,11 +426,16 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
                 c.inverters(),
                 _optional(c.export_limit()),
                 _optional(c.pcs_settings()),
-                _optional(c.production_report()),
                 _optional(c.battery_power()) if hw.has_battery else none(),
                 _optional(c.inverter_details()),
+                # Setup waits for the report: it decides which of its sensors exist.
+                self._read_report() if self.data is None else none(),
             )
             energy = LifetimeEnergy.from_payloads(meters, readings, reports)
+        if self.data is not None and (self._report_task is None or self._report_task.done()):
+            self._report_task = self.config_entry.async_create_background_task(
+                self.hass, self._read_report(), f"{DOMAIN} production report"
+            )
         firmware = self._firmware
         self._check_layout(meters)
         self._forget_reported(contacts)
@@ -417,11 +450,7 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
             export_limit,
             pcs,
             ct_meters=_parsed(lambda: parse_ct_meters(meters, readings, firmware)) or {},
-            production=(
-                _parsed(lambda: ProductionReport.from_payload(report, meters, firmware))
-                if report is not None
-                else None
-            ),
+            production=self._production(meters),
             battery_power=battery_power,
             inverter_details=inverter_details,
         )

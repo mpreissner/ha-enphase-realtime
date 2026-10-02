@@ -88,6 +88,8 @@ class FakeEnphase:
     system_id: int | None = SITE
     site_ids: list[int] = field(default_factory=lambda: [SITE])
     envoy_errors: dict[str, EnvoyError] = field(default_factory=dict)
+    # A GET of a path listed here waits until its event is set, like a slow Envoy.
+    envoy_gates: dict[str, asyncio.Event] = field(default_factory=dict)
     battery_settings_error: EnlightenError | None = None
     # Fields merged over a fixture, so a test can move a local value (e.g. after a write).
     envoy_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -123,6 +125,8 @@ class FakeEnphase:
         return EnvoyInfo.from_xml(xml)
 
     async def get_json(self, client: EnvoyClient, path: str, timeout: Any = None) -> Any:
+        if path in self.envoy_gates:
+            await self.envoy_gates[path].wait()
         if path in self.envoy_errors:
             raise self.envoy_errors[path]
         if path not in ENVOY_FIXTURES:

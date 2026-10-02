@@ -130,7 +130,9 @@ second, plus the stream).
   1 s on the reference site, each re-enabled automatically (S10). This POST changes a telemetry
   setting, not the system's behaviour, so it isn't a control (6.4).
 
-**Never polled:** `production.json`, `inventory.json` and `home.json`.
+**Never polled:** `inventory.json` and `home.json`. `production.json` is read, for the core
+integration's energy today and last seven days, but in the background and never as part of a
+poll ([core-entity-parity.md](core-entity-parity.md) section 3.1).
 
 ### 3.2 Recorder load
 

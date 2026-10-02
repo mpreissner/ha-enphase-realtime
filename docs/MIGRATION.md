@@ -26,9 +26,22 @@ filed under each entity ID, so a new entity that takes over an ID picks up the o
 
 ## 3. Take over the old entity IDs
 
-Once the core integration is deleted, open each Enphase Realtime entity that got a `_2` suffix
-(**Settings → Entities**, search for `_2`, ⚙) and remove the suffix from its **Entity ID**. It
-then has the core entity's ID and history.
+Once the core integration is deleted, have Home Assistant work the entity IDs out again. Each
+entity then gets the core entity's ID and history.
+
+1. Open **Settings → Entities**.
+2. Filter by **Integration: Enphase Realtime**, and clear the status filter so that disabled
+   entities are listed too.
+3. Turn on selection mode and select all.
+4. **⋮ → Recreate entity IDs of selected.**
+
+For one device only, its page has the same action under **⋮ → Recreate entity IDs**. You can
+also rename entities one at a time: search for `_2`, open the entity's settings (⚙) and remove
+the suffix from its **Entity ID**.
+
+While it renames, Home Assistant may log "Cannot migrate history … already in use" for each
+entity. That is expected: the ID already has the core entity's history, and the entity carries
+on from it.
 
 If you'd rather not rename anything, skip step 1: delete the core integration first and then
 add Enphase Realtime. Its entities are then created with the old IDs directly.

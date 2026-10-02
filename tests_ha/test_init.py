@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from datetime import timedelta
+
 import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE, EntityCategory
@@ -10,6 +13,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.enphase_realtime import coordinator
 from custom_components.enphase_realtime.const import CONF_ENABLE_STREAM, CONF_TOKEN, DOMAIN
 from custom_components.enphase_realtime.enlighten_client.errors import EnlightenConnectionError
 from custom_components.enphase_realtime.envoy_client.errors import (
@@ -18,6 +22,8 @@ from custom_components.enphase_realtime.envoy_client.errors import (
 )
 
 from .conftest import SERIAL, FakeEnphase, entry_data
+
+REPORT = "/production.json?details=1"
 
 
 def _entity_id(hass: HomeAssistant, platform: str, key: str, prefix: str = SERIAL) -> str | None:
@@ -275,6 +281,62 @@ async def test_production_report_sensors(
         assert week is not None
         assert "state_class" not in week.attributes
         assert float(week.state) == pytest.approx(totals.energy_last_seven_days / 1000, abs=0.1)
+
+
+async def test_slow_production_report_does_not_hold_up_the_poll(
+    hass: HomeAssistant,
+    fake: FakeEnphase,
+    config_entry: MockConfigEntry,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Envoy can take most of a minute over production.json. After setup it's read in the
+    background: the poll doesn't wait, and the sensors keep the last report meanwhile."""
+    await _setup(hass, config_entry)
+    slow = config_entry.runtime_data.slow
+    today = f"sensor.envoy_{SERIAL}_energy_production_today"
+    value = hass.states.get(today).state
+    assert value != STATE_UNAVAILABLE
+
+    gate = fake.envoy_gates[REPORT] = asyncio.Event()
+    async with asyncio.timeout(5):
+        await slow.async_refresh()
+    await hass.async_block_till_done()
+    assert slow.last_update_success
+    assert hass.states.get(today).state == value
+
+    # A second poll doesn't start a second read while the first is still out.
+    task = slow._report_task
+    await slow.async_refresh()
+    assert slow._report_task is task and not task.done()
+
+    # The report isn't kept for ever.
+    monkeypatch.setattr(coordinator, "PRODUCTION_REPORT_MAX_AGE", timedelta(0))
+    await slow.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(today).state == STATE_UNAVAILABLE
+
+    # The answer is published when it comes, without waiting for the next poll.
+    monkeypatch.undo()
+    gate.set()
+    await task
+    await hass.async_block_till_done()
+    assert hass.states.get(today).state == value
+
+
+async def test_failed_production_report_keeps_the_last_one(
+    hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
+) -> None:
+    await _setup(hass, config_entry)
+    slow = config_entry.runtime_data.slow
+    today = f"sensor.envoy_{SERIAL}_energy_production_today"
+    value = hass.states.get(today).state
+
+    fake.envoy_errors[REPORT] = EnvoyConnectionError(f"{REPORT}: TimeoutError()")
+    await slow.async_refresh()
+    await slow._report_task
+    await hass.async_block_till_done()
+    assert slow.last_update_success
+    assert hass.states.get(today).state == value
 
 
 async def test_encharge_power_sensors(

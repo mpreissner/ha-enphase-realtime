@@ -32,8 +32,9 @@ both. The device names already matched (`Envoy <serial>`, `Enpower <serial>`,
 
 ### 3.1 New reads
 
-All three are in the slow (60 s) poll and optional: an Envoy that doesn't serve one simply
-doesn't get its entities, and the rest of the poll is unaffected.
+All three are optional: an Envoy that doesn't serve one simply doesn't get its entities, and
+the rest of the poll is unaffected. `/ivp/ensemble/power` and `/ivp/pdm/device_data` are in the
+slow (60 s) poll. `/production.json` is read beside it (see below).
 
 | Endpoint | Used for |
 |---|---|
@@ -44,6 +45,21 @@ doesn't get its entities, and the rest of the poll is unaffected.
 `/ivp/meters` and `/ivp/meters/readings`, already polled, now also give each CT's full reading
 (energy delivered and received, power, voltage, current, power factor, frequency), its metering
 status and status flags, as a total and per phase.
+
+**`/production.json` is read in the background.** It has taken 30 to 55 s on the reference site
+([FINDINGS.md](../FINDINGS.md)), and in the slow poll with that poll's 20 s timeout it failed
+on almost every poll after the first, leaving its sensors unavailable and holding each poll up
+for 20 s. So:
+
+- The first poll, at setup, waits for it, because the report decides which of its sensors
+  exist. If it fails there, the sensors are created by the CTs and start unavailable.
+- After that each slow poll starts a read in a background task, unless the last one is still
+  out, and doesn't wait for it. The read has 90 s. The poll uses the last report it has.
+- A report is published to the sensors as soon as it arrives, not at the next poll.
+- A failed read keeps the last report. A report older than 5 minutes
+  (`PRODUCTION_REPORT_MAX_AGE`) is dropped and its sensors go unavailable.
+
+So these sensors update about as often as the Envoy answers, at best once a minute.
 
 ### 3.2 New entities
 
