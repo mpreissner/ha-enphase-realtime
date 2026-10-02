@@ -303,7 +303,7 @@ Envoys that don't serve these endpoints simply don't get the entities.
   type is Load (see [Dry contacts](#dry-contacts)).
 - **Microinverter detail sensors** (voltage, current, temperature and so on) are unknown at
   night, while the microinverters aren't reporting.
-- **Dry contacts without a load name** installed before this version keep the entity IDs
+- **Dry contacts without a load name** installed before 1.0.1 keep the entity IDs
   they had (`switch.no1`, `select.no1_mode`). Only a new installation gets the core
   integration's IDs for them.
 - **Battery settings need the cloud.** The Envoy ignores local battery writes on current
