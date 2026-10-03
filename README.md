@@ -75,7 +75,8 @@ as an **Integration**, then install **Enphase Realtime** and restart Home Assist
 3. Check the detected phase layout and hardware, and confirm the country and time zone.
    Battery schedules use the site's time zone. On a site with an IQ System Controller, the
    same step asks whether to allow switching the [grid relay](#grid-relay) and
-   [dry-contact control](#dry-contacts). Both are off unless you turn them on.
+   [dry-contact control](#dry-contacts). Both are off unless you turn them on. You can also
+   pick a **Backup load sensor** here to add the [Enphase overhead](#enphase-overhead) sensors.
 
 All of these except the host and login can be changed later under the integration's
 **Configure**, along with the poll intervals and the stream.
@@ -216,8 +217,8 @@ main feed), the difference is the overhead:
 Enphase overhead = Envoy load − backup load
 ```
 
-To turn it on, pick that sensor in the option **Backup load sensor**. Two sensors are added to
-the Envoy device:
+To turn it on, pick that sensor as the **Backup load sensor**, at setup or under
+**Configure**. Two sensors are added to the Envoy device:
 
 - **Enphase overhead power**: the mean over the last 5 minutes. The two meters are read at
   slightly different moments and don't report a change in load at the same time, so for a

@@ -221,6 +221,13 @@ def _interval(minimum: int, maximum: int) -> NumberSelector:
     )
 
 
+def _backup_load_selector() -> EntitySelector:
+    # Left empty, there are no overhead entities (docs/specs/enphase-overhead.md).
+    return EntitySelector(
+        EntitySelectorConfig(domain="sensor", device_class=SensorDeviceClass.POWER)
+    )
+
+
 _TIME_ZONES: list[str] = []
 
 
@@ -367,6 +374,8 @@ class EnphaseRealtimeConfigFlow(ConfigFlow, domain=DOMAIN):
             if _has_enpower(probe):
                 options[CONF_ALLOW_GRID_RELAY] = user_input[CONF_ALLOW_GRID_RELAY]
                 options[CONF_ALLOW_DRY_CONTACTS] = user_input[CONF_ALLOW_DRY_CONTACTS]
+            if backup_load := user_input.get(CONF_BACKUP_LOAD_ENTITY):
+                options[CONF_BACKUP_LOAD_ENTITY] = backup_load
             return self.async_create_entry(
                 title=f"Envoy {probe.serial}", data=data, options=options
             )
@@ -382,6 +391,7 @@ class EnphaseRealtimeConfigFlow(ConfigFlow, domain=DOMAIN):
         if _has_enpower(probe):
             fields[vol.Required(CONF_ALLOW_GRID_RELAY, default=DEFAULT_ALLOW_GRID_RELAY)] = bool
             fields[vol.Required(CONF_ALLOW_DRY_CONTACTS, default=DEFAULT_ALLOW_DRY_CONTACTS)] = bool
+        fields[vol.Optional(CONF_BACKUP_LOAD_ENTITY)] = _backup_load_selector()
         return self.async_show_form(
             step_id="confirm",
             data_schema=self.add_suggested_values_to_schema(
@@ -496,10 +506,7 @@ class EnphaseRealtimeOptionsFlow(OptionsFlow):
         if self.config_entry.data.get(CONF_HAS_ENPOWER):
             fields[vol.Required(CONF_ALLOW_GRID_RELAY)] = bool
             fields[vol.Required(CONF_ALLOW_DRY_CONTACTS)] = bool
-        # Left empty, there are no overhead entities (docs/specs/enphase-overhead.md).
-        fields[vol.Optional(CONF_BACKUP_LOAD_ENTITY)] = EntitySelector(
-            EntitySelectorConfig(domain="sensor", device_class=SensorDeviceClass.POWER)
-        )
+        fields[vol.Optional(CONF_BACKUP_LOAD_ENTITY)] = _backup_load_selector()
         return self.async_show_form(
             step_id="init",
             data_schema=self.add_suggested_values_to_schema(

@@ -27,11 +27,13 @@
           "country": "Country",
           "time_zone": "Time zone",
           "allow_grid_relay_control": "Allow switching the grid relay",
-          "allow_dry_contact_control": "Allow dry-contact control"
+          "allow_dry_contact_control": "Allow dry-contact control",
+          "backup_load_entity": "Backup load sensor"
         },
         "data_description": {
           "allow_grid_relay_control": "Creates a \"Grid enabled\" switch that takes the house off the grid and back. Off the grid, the house runs from the battery until it is switched back on, and that can't be done remotely if Home Assistant or the network goes down with it.",
-          "allow_dry_contact_control": "Lets Home Assistant change the System Controller's dry contacts: open and close each one, and set its mode, actions and battery levels. Without it, the dry contacts' entities only show their state. The contacts switch whatever loads the installer wired to them."
+          "allow_dry_contact_control": "Lets Home Assistant change the System Controller's dry contacts: open and close each one, and set its mode, actions and battery levels. Without it, the dry contacts' entities only show their state. The contacts switch whatever loads the installer wired to them.",
+          "backup_load_entity": "Optional. A power sensor on the feed into the panel the Enphase system backs up, such as a smart panel's main feed. Adds \"Enphase overhead\" power and energy sensors: the Envoy's load less this sensor, which is what the Enphase equipment itself draws."
         }
       },
       "reauth_confirm": {
