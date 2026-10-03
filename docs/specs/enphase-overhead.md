@@ -71,6 +71,7 @@ per battery than the table above, and it doesn't.
 One new option, **Backup load sensor** (`backup_load_entity`): an entity selector limited to
 `sensor` entities with device class `power`. It is optional; leaving it empty turns the feature
 off. Offered on every site: the calculation doesn't need a battery or a System Controller.
+It is also offered, empty, in the setup's confirm step, and stored only when one is picked.
 Changing it reloads the entry, as every option does.
 
 When the option is cleared, the overhead entities are removed from the entity registry on the
