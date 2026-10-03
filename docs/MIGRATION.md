@@ -6,6 +6,13 @@ the core integration does, under the same device and entity names, so the old en
 over with no editing. The few exceptions are under
 [What doesn't carry over](#what-doesnt-carry-over).
 
+**The core integration has to be deleted, not just disabled** (step 2). Until it is, it keeps
+its entity IDs and Enphase Realtime's entities can't take them over.
+
+If you also use [Enphase-Envoy-mqtt-json](https://github.com/vk2him/Enphase-Envoy-mqtt-json)
+for real-time power, see [Coming from Enphase-Envoy-mqtt-json](#coming-from-enphase-envoy-mqtt-json)
+as well.
+
 ## 1. Run both side by side first
 
 Set up Enphase Realtime while the core integration is still running, and compare the two for a
@@ -16,12 +23,13 @@ While both are loaded, the new entities that match a core one get a `_2` suffix,
 core integration already holds that entity ID: for example `sensor.envoy_<serial>_battery_2` and
 `sensor.envoy_<serial>_lifetime_energy_production_2`. That goes away in step 3.
 
-## 2. Remove the core integration
+## 2. Delete the core integration
 
 **Settings → Devices & services → Enphase Envoy → ⋮ → Delete.**
 
-Disabling isn't enough: a disabled integration keeps its entities in the registry, and with
-them their entity IDs. Deleting frees the IDs. The recorded history stays in the database,
+**Delete it; don't just disable it.** A disabled integration keeps its entities in the
+registry, and with them their entity IDs, so Enphase Realtime's entities keep the `_2` suffix
+or, if you skipped step 1, are created with it. Deleting frees the IDs. The recorded history stays in the database,
 filed under each entity ID, so a new entity that takes over an ID picks up the old history.
 
 ## 3. Take over the old entity IDs
@@ -43,8 +51,8 @@ While it renames, Home Assistant may log "Cannot migrate history … already in 
 entity. That is expected: the ID already has the core entity's history, and the entity carries
 on from it.
 
-If you'd rather not rename anything, skip step 1: delete the core integration first and then
-add Enphase Realtime. Its entities are then created with the old IDs directly.
+If you'd rather not rename anything, skip step 1: delete (not disable) the core integration
+first and then add Enphase Realtime. Its entities are then created with the old IDs directly.
 
 The entities below have the same ID in both integrations. `<serial>` is the Envoy's serial,
 `<sc>` the IQ System Controller's, `<collar>` the IQ Meter Collar's, `<c6>` the C6 Combiner
@@ -105,6 +113,31 @@ Then check the **Energy dashboard** (**Settings → Dashboards → Energy**): it
 point to the lifetime sensors above. The README's
 [Energy dashboard](../README.md#energy-dashboard) section lists which entity goes in which
 field.
+
+## Coming from Enphase-Envoy-mqtt-json
+
+Enphase Realtime reads the same real-time meter stream and fast endpoints as
+[Enphase-Envoy-mqtt-json](https://github.com/vk2him/Enphase-Envoy-mqtt-json), so once it's set
+up you don't need both. Keeping both doubles the requests to the Envoy for the same data. The
+MQTT project's sensors are ones you defined yourself, so their IDs can't carry over; move what
+uses them instead.
+
+1. **Point the Energy dashboard back at the core entities.** If any source uses an MQTT sensor,
+   or a helper fed by one (such as an Integral or Utility Meter counter), change it to the entity in the README's [Energy dashboard](../README.md#energy-dashboard)
+   table. Those are the core integration's entity IDs, so if core was running alongside the
+   MQTT project, their statistics go back to when core was set up, and the dashboard keeps that
+   history. A source you remove takes its history off the dashboard; the statistics stay in the
+   database.
+2. **Move automations, scripts and dashboards** to Enphase Realtime's power sensors:
+   **Current power production**, **Current power consumption**, **Current net power
+   consumption** and **Current battery discharge**, or **Grid power**, **Load power** and
+   **PV power**. They update about once a second, like the MQTT sensors. Check each one's sign
+   against the MQTT sensor it replaces: those use whatever sign your template gave them.
+3. **Stop the MQTT project**: stop and uninstall the add-on, or the container or script if you
+   run it outside Home Assistant.
+4. **Remove its sensors**: the `mqtt:` sensor entries in your configuration, and any template,
+   Integral or Utility Meter helpers that read only from them. Then restart Home Assistant or
+   reload the MQTT configuration.
 
 ## What doesn't carry over
 

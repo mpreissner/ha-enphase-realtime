@@ -14,7 +14,12 @@ Controller and IQ Battery sites.
   reserve. Every cloud write is confirmed from the local Envoy values, because the cloud only
   updates its own view when the Envoy next reports in.
 
-Coming from the core integration? See [docs/MIGRATION.md](docs/MIGRATION.md).
+Coming from the core integration? See [docs/MIGRATION.md](docs/MIGRATION.md). In short:
+**delete** the core integration (disabling it isn't enough) so this one can take over its
+entity IDs and history. If you use
+[Enphase-Envoy-mqtt-json](https://github.com/vk2him/Enphase-Envoy-mqtt-json) for real-time
+power, the guide also covers moving off it and pointing the Energy dashboard back at the core
+entities.
 
 See [docs/specs/core-integration.md](docs/specs/core-integration.md) for the design and
 [docs/FINDINGS.md](docs/FINDINGS.md) for the protocol notes.
