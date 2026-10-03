@@ -56,8 +56,8 @@ first and then add Enphase Realtime. Its entities are then created with the old 
 
 The entities below have the same ID in both integrations. `<serial>` is the Envoy's serial,
 `<sc>` the IQ System Controller's, `<collar>` the IQ Meter Collar's, `<c6>` the C6 Combiner
-Controller's, `<battery>` each IQ Battery's and `<inverter>` each microinverter's. The IDs assume you kept the device names both integrations give; if you
-renamed a device, check the old IDs in your own entity list.
+Controller's, `<battery>` each IQ Battery's and `<inverter>` each microinverter's. The IDs are the defaults; if you changed any in core, see
+[What doesn't carry over](#what-doesnt-carry-over).
 
 | Entity ID (core and Enphase Realtime) |
 |---|
@@ -141,6 +141,14 @@ uses them instead.
 
 ## What doesn't carry over
 
+- **Entity IDs you changed in the core integration.** Enphase Realtime creates the default IDs
+  listed above. If you gave a core entity your own ID, such as `sensor.solar_power`, deleting
+  core frees that ID, but nothing takes it over. The same goes for a renamed device, if you let
+  Home Assistant update its entity IDs to the new name. Renaming the device without updating
+  the IDs, or changing only an entity's display name, keeps the default IDs, and those match.
+  To carry one over, open the Enphase Realtime entity's settings (⚙) and set its **Entity ID**
+  to your old one; it then continues that ID's history. Check your entity list before you
+  delete core if you're not sure which IDs you changed.
 - **Dry contacts without a load name, in three cases.** Their entity IDs carry over unless:
   - you renamed the core integration's entry. Core's cutoff level takes its ID from the entry's
     title, and Enphase Realtime assumes the default, `Envoy <serial>`;
