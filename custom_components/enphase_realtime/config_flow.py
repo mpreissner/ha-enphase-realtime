@@ -364,21 +364,28 @@ class EnphaseRealtimeConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_COUNTRY: user_input[CONF_COUNTRY],
                 CONF_TIME_ZONE: user_input[CONF_TIME_ZONE],
             }
+            if _has_enpower(probe):
+                options[CONF_ALLOW_GRID_RELAY] = user_input[CONF_ALLOW_GRID_RELAY]
+                options[CONF_ALLOW_DRY_CONTACTS] = user_input[CONF_ALLOW_DRY_CONTACTS]
             return self.async_create_entry(
                 title=f"Envoy {probe.serial}", data=data, options=options
             )
 
         country = (settings and settings.country_code) or self.hass.config.country
         time_zone = (settings and settings.timezone) or self.hass.config.time_zone
+        fields: dict[Any, Any] = {
+            vol.Required(CONF_COUNTRY): CountrySelector(),
+            vol.Required(CONF_TIME_ZONE): await _time_zone_selector(self.hass),
+        }
+        # Asked here as well as in the options, so that turning them on doesn't take a second
+        # setup. Only a System Controller has a grid relay and dry contacts (spec 6.3).
+        if _has_enpower(probe):
+            fields[vol.Required(CONF_ALLOW_GRID_RELAY, default=DEFAULT_ALLOW_GRID_RELAY)] = bool
+            fields[vol.Required(CONF_ALLOW_DRY_CONTACTS, default=DEFAULT_ALLOW_DRY_CONTACTS)] = bool
         return self.async_show_form(
             step_id="confirm",
             data_schema=self.add_suggested_values_to_schema(
-                vol.Schema(
-                    {
-                        vol.Required(CONF_COUNTRY): CountrySelector(),
-                        vol.Required(CONF_TIME_ZONE): await _time_zone_selector(self.hass),
-                    }
-                ),
+                vol.Schema(fields),
                 {CONF_COUNTRY: country, CONF_TIME_ZONE: time_zone},
             ),
             description_placeholders={

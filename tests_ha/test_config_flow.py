@@ -76,6 +76,43 @@ async def test_happy_path(hass: HomeAssistant, fake: FakeEnphase) -> None:
     assert data[CONF_PHASE_LAYOUT] == "split"
     assert data[CONF_HAS_BATTERY] is True
     assert data[CONF_HAS_ENPOWER] is True
+    assert result["options"] == {
+        CONF_COUNTRY: "US",
+        CONF_TIME_ZONE: "US/Eastern",
+        CONF_ALLOW_GRID_RELAY: False,
+        CONF_ALLOW_DRY_CONTACTS: False,
+    }
+
+
+async def test_control_options_offered_at_setup(hass: HomeAssistant, fake: FakeEnphase) -> None:
+    result = await _start(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    assert CONF_ALLOW_GRID_RELAY in result["data_schema"].schema
+    assert CONF_ALLOW_DRY_CONTACTS in result["data_schema"].schema
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_COUNTRY: "US",
+            CONF_TIME_ZONE: "US/Eastern",
+            CONF_ALLOW_GRID_RELAY: True,
+            CONF_ALLOW_DRY_CONTACTS: True,
+        },
+    )
+    assert result["options"][CONF_ALLOW_GRID_RELAY] is True
+    assert result["options"][CONF_ALLOW_DRY_CONTACTS] is True
+
+
+async def test_setup_without_a_system_controller_has_no_control_options(
+    hass: HomeAssistant, fake: FakeEnphase
+) -> None:
+    with patch("custom_components.enphase_realtime.config_flow._has_enpower", return_value=False):
+        result = await _start(hass)
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+        assert CONF_ALLOW_GRID_RELAY not in result["data_schema"].schema
+        assert CONF_ALLOW_DRY_CONTACTS not in result["data_schema"].schema
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {CONF_COUNTRY: "US", CONF_TIME_ZONE: "US/Eastern"}
+        )
     assert result["options"] == {CONF_COUNTRY: "US", CONF_TIME_ZONE: "US/Eastern"}
 
 
