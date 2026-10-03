@@ -51,6 +51,10 @@ While it renames, Home Assistant may log "Cannot migrate history … already in 
 entity. That is expected: the ID already has the core entity's history, and the entity carries
 on from it.
 
+If entities then look disabled or missing in the browser, hard-refresh the page (Ctrl+Shift+R,
+or Cmd+Shift+R on a Mac), or restart the companion app. The frontend can keep showing the
+entity list from before the switch.
+
 If you'd rather not rename anything, skip step 1: delete (not disable) the core integration
 first and then add Enphase Realtime. Its entities are then created with the old IDs directly.
 
