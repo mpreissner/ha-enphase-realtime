@@ -283,7 +283,9 @@ From these, setup:
 7. **Confirm step.** Shows the detected phase layout, country, time zone and hardware (for
    example "Split-phase · US · US/Eastern · 1 IQ Battery, System Controller"). The user can
    correct the country and time zone here. The phase layout is shown but can't be edited,
-   because it has to match the CTs.
+   because it has to match the CTs. On a site with a System Controller it also asks for
+   `allow_grid_relay_control` and `allow_dry_contact_control` (both off), so that turning them
+   on doesn't need a second pass through the options and the reload that comes with it.
 
 **The password is stored in the config entry.** The core integration does the same. The
 Enlighten session expires within days (the captured session expired a week after capture), and
@@ -307,7 +309,8 @@ discarded.
 - `stream_interval` (default 0 = every frame, 0–60; see 3.2)
 - `cloud_interval` (default 300 s, 60–3600)
 - `enable_stream` (default on)
-- `allow_grid_relay_control` (default **off**, see 6.3)
+- `allow_grid_relay_control` (default **off**, see 6.3) and `allow_dry_contact_control`
+  (default **off**, see [dry-contacts.md](dry-contacts.md)); System Controller sites only
 - `backup_load_entity` (default empty; a power sensor that adds the Enphase overhead entities,
   see [enphase-overhead.md](enphase-overhead.md))
 - `country` and `time_zone` (prefilled as in 3.3)
