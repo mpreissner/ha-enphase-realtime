@@ -285,7 +285,8 @@ From these, setup:
    correct the country and time zone here. The phase layout is shown but can't be edited,
    because it has to match the CTs. On a site with a System Controller it also asks for
    `allow_grid_relay_control` and `allow_dry_contact_control` (both off), so that turning them
-   on doesn't need a second pass through the options and the reload that comes with it.
+   on doesn't need a second pass through the options and the reload that comes with it. On
+   every site it also offers the optional `backup_load_entity` selector, for the same reason.
 
 **The password is stored in the config entry.** The core integration does the same. The
 Enlighten session expires within days (the captured session expired a week after capture), and

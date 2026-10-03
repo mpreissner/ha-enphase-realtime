@@ -14,6 +14,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.enphase_realtime.const import (
     CONF_ALLOW_DRY_CONTACTS,
     CONF_ALLOW_GRID_RELAY,
+    CONF_BACKUP_LOAD_ENTITY,
     CONF_CLOUD_INTERVAL,
     CONF_COUNTRY,
     CONF_ENABLE_STREAM,
@@ -110,10 +111,28 @@ async def test_setup_without_a_system_controller_has_no_control_options(
         result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
         assert CONF_ALLOW_GRID_RELAY not in result["data_schema"].schema
         assert CONF_ALLOW_DRY_CONTACTS not in result["data_schema"].schema
+        assert CONF_BACKUP_LOAD_ENTITY in result["data_schema"].schema
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"], {CONF_COUNTRY: "US", CONF_TIME_ZONE: "US/Eastern"}
         )
     assert result["options"] == {CONF_COUNTRY: "US", CONF_TIME_ZONE: "US/Eastern"}
+
+
+async def test_backup_load_offered_at_setup(hass: HomeAssistant, fake: FakeEnphase) -> None:
+    result = await _start(hass)
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], USER_INPUT)
+    assert CONF_BACKUP_LOAD_ENTITY in result["data_schema"].schema
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_COUNTRY: "US",
+            CONF_TIME_ZONE: "US/Eastern",
+            CONF_ALLOW_GRID_RELAY: False,
+            CONF_ALLOW_DRY_CONTACTS: False,
+            CONF_BACKUP_LOAD_ENTITY: "sensor.panel_power",
+        },
+    )
+    assert result["options"][CONF_BACKUP_LOAD_ENTITY] == "sensor.panel_power"
 
 
 async def test_site_found_by_search_when_login_has_none(
