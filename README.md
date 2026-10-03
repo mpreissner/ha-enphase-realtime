@@ -102,6 +102,56 @@ The full list, with the core integration's equivalent for each entity, is in sec
 [spec](docs/specs/core-integration.md#5-entities-and-parity-with-the-core-integration) and in
 the [entity parity spec](docs/specs/core-entity-parity.md).
 
+## Energy dashboard
+
+**Settings → Dashboards → Energy.** Replace `<serial>` with your Envoy's serial number. The
+energy sensors exist only when the CT they're read from is enabled on the Envoy.
+
+| Dashboard field | Entity | Needs |
+|---|---|---|
+| Grid: energy imported | `sensor.envoy_<serial>_lifetime_net_energy_consumption` | Net-consumption CT |
+| Grid: energy exported | `sensor.envoy_<serial>_lifetime_net_energy_production` | Net-consumption CT |
+| Grid: power | `sensor.envoy_<serial>_current_net_power_consumption`, standard polarity | Net-consumption CT |
+| Solar: energy produced | `sensor.envoy_<serial>_lifetime_energy_production` | |
+| Solar: power | `sensor.envoy_<serial>_current_power_production` | |
+| Battery: energy into the battery | `sensor.envoy_<serial>_lifetime_battery_energy_charged` | Storage CT |
+| Battery: energy out of the battery | `sensor.envoy_<serial>_lifetime_battery_energy_discharged` | Storage CT |
+| Battery: power | `sensor.envoy_<serial>_current_battery_discharge`, standard polarity | A battery |
+| Battery: state of charge | `sensor.envoy_<serial>_battery` | A battery |
+
+"Net energy consumption" and "net energy production" are the grid import and export counters:
+the core integration's names, kept so their history carries over. Standard polarity means
+positive is power from the grid, and from the battery. The power sensors update about once a
+second, so the dashboard's power graphs follow the site closely.
+
+These are the entities the core integration's documentation recommends, with the same entity
+IDs, so a dashboard set up with core keeps working and keeps its history after the move. Some
+sites need something else:
+
+- **Total-consumption CT instead of net-consumption.** There are no grid import and export
+  counters. Enable **Lifetime balanced net energy consumption** (disabled by default), which
+  rises on import and falls on export, and split it into import and export with template
+  sensors, as the core integration's documentation describes.
+- **No storage CT.** There are no battery energy counters. You can still build them from
+  **Current battery discharge** with two template sensors (its positive and negative parts) and
+  two Integral helpers.
+- **Don't use the today and last seven days sensors.** They reset, and the dashboard needs
+  counters that only rise.
+- **Per-phase counters** (disabled by default) can be added as individual devices if your loads
+  sit on one phase.
+- **Grid, Load and PV power** are this integration's own. The core integration has no equivalent,
+  so a dashboard that uses them has no history from before the move.
+
+If you exclude sensors from the recorder (see the next section), keep the power sensors above
+in: the dashboard's power graphs read their statistics.
+
+**Keeping history when an entity ID differs.** History belongs to an entity ID, so an entity
+that takes over a core entity's ID continues its history: see step 3 of the
+[migration guide](docs/MIGRATION.md#3-take-over-the-old-entity-ids). If one of yours ended up
+with a different ID (a renamed device, or a `_2` left over), rename it to the old ID in its
+settings. Copying history from one sensor to a different one isn't supported: the two
+measure different things, and the Energy dashboard would mix the two.
+
 ## Update rates and the recorder
 
 By default the power sensors update about once a second, so that automations such as load
@@ -128,7 +178,10 @@ recorder:
       - sensor.envoy_<serial>_voltage_l1_l2
 ```
 
-The energy panel reads the lifetime energy sensors, which update slowly and aren't excluded.
+The energy panel's energy figures come from the lifetime energy sensors, which update slowly
+and aren't excluded. Its power graphs come from the current power sensors, which the first glob
+does exclude. To keep them, list the power sensors you don't want instead of using
+`current_*`.
 
 **Which sensors to trigger on.** Use the live-poll sensors (grid, load, PV and battery power,
 grid status) for time-critical automations. The streamed meter sensors (current power

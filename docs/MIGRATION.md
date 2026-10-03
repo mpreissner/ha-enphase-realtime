@@ -102,7 +102,9 @@ If Home Assistant raises a repair about a changed unit for a sensor's statistics
 update the unit. The old statistics are kept.
 
 Then check the **Energy dashboard** (**Settings → Dashboards → Energy**): its sources should
-point to the lifetime sensors above.
+point to the lifetime sensors above. The README's
+[Energy dashboard](../README.md#energy-dashboard) section lists which entity goes in which
+field.
 
 ## What doesn't carry over
 
