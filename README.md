@@ -68,7 +68,12 @@ as an **Integration**, then install **Enphase Realtime** and restart Home Assist
 1. Enter the Envoy's host name or IP address and your Enlighten email and password.
 2. If the account has more than one site, choose the one this Envoy belongs to.
 3. Check the detected phase layout and hardware, and confirm the country and time zone.
-   Battery schedules use the site's time zone.
+   Battery schedules use the site's time zone. On a site with an IQ System Controller, the
+   same step asks whether to allow switching the [grid relay](#grid-relay) and
+   [dry-contact control](#dry-contacts). Both are off unless you turn them on.
+
+All of these except the host and login can be changed later under the integration's
+**Configure**, along with the poll intervals and the stream.
 
 If Enphase later refuses the saved login, Home Assistant asks you to log in again.
 
@@ -262,7 +267,8 @@ doesn't behave as described.
 
 ## Grid relay
 
-On a site with an IQ System Controller, the option **Allow switching the grid relay** creates a
+On a site with an IQ System Controller, the option **Allow switching the grid relay** (offered
+at setup and under **Configure**) creates a
 **Grid enabled** switch on the System Controller. Off opens the main relay and the house runs
 from the battery; on closes it again. The option is off by default: if the house is taken off
 the grid by mistake and Home Assistant or the network goes down with it, it can't be put back
@@ -309,7 +315,7 @@ a load name still gets the core integration's entity IDs (`select.mode`, `select
   must stay below the restore level.
 
 They show the contact's state and settings either way, but changing them needs the option
-**Allow dry-contact control**. It is off by default, because the contacts switch real loads;
+**Allow dry-contact control**, offered at setup and under **Configure**. It is off by default, because the contacts switch real loads;
 with it off, a change is refused with a message pointing to the option. Like the grid relay, each control shows the requested value with
 `confirmation: pending` until the Envoy reports it, then `confirmed`, or `failed` after 30 s.
 In Battery level mode the System Controller switches the contact itself, so it may undo a
