@@ -136,8 +136,6 @@ def test_lifetime_energy_reference() -> None:
     assert energy.grid_import == pytest.approx(1124885.476)
     assert energy.grid_export == pytest.approx(371245.494)
     assert energy.consumption == pytest.approx(1496484.23)
-    assert energy.storage_delivered == pytest.approx(626.383)
-    assert energy.storage_received == pytest.approx(13560.114)
 
 
 def test_reports_net_is_readings_import_minus_export() -> None:
@@ -169,10 +167,9 @@ def test_disabled_storage_meter_has_no_counters() -> None:
     for m in meters:
         if m["measurementType"] == "storage":
             m["state"] = "disabled"
-    energy = _energy(meters=meters)
-    assert energy.storage_delivered is None
-    assert energy.storage_received is None
-    assert energy.production is not None
+    cts = parse_ct_meters(Meter.parse_list(meters), load_json("ivp_meters_readings.json"))
+    assert "storage" not in cts
+    assert "production" in cts
 
 
 def test_no_consumption_ct_means_no_import_export_or_consumption() -> None:

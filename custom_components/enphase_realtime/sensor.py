@@ -382,8 +382,6 @@ _LIFETIME = (
     ("grid_import", "Lifetime net energy consumption"),
     ("grid_export", "Lifetime net energy production"),
     ("consumption", "Lifetime energy consumption"),
-    ("storage_delivered", "Lifetime battery energy discharged"),
-    ("storage_received", "Lifetime battery energy charged"),
 )
 
 

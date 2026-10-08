@@ -7,7 +7,7 @@ from datetime import timedelta
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.const import STATE_UNAVAILABLE, EntityCategory
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -20,6 +20,7 @@ from custom_components.enphase_realtime.envoy_client.errors import (
     EnvoyAuthError,
     EnvoyConnectionError,
 )
+from tests.helpers import load_json
 
 from .conftest import SERIAL, FakeEnphase, entry_data
 
@@ -337,6 +338,37 @@ async def test_failed_production_report_keeps_the_last_one(
     await hass.async_block_till_done()
     assert slow.last_update_success
     assert hass.states.get(today).state == value
+
+
+async def test_halved_storage_ct_total_is_not_reported(
+    hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
+) -> None:
+    """Firmware 8.3.6xxx sends one leg as the storage total now and then (seen live, 2026-10).
+
+    A halved lifetime counter reads as a meter reset to the recorder, which then counts the
+    whole lifetime again. The sensors must go unknown for that poll instead.
+    """
+    await _setup(hass, config_entry)
+    readings = load_json("ivp_meters_readings.json")
+    storage = next(r for r in readings if r["eid"] == 704643840)
+    charged = f"sensor.envoy_{SERIAL}_lifetime_battery_energy_charged"
+    discharged = f"sensor.envoy_{SERIAL}_lifetime_battery_energy_discharged"
+    full = float(hass.states.get(charged).state)
+    assert full == pytest.approx(storage["actEnergyRcvd"] / 1e6, abs=1e-3)
+
+    dead, live = storage["channels"][0], storage["channels"][1]
+    dead.update(actEnergyDlvd=0.0, actEnergyRcvd=0.0)
+    storage.update(actEnergyDlvd=live["actEnergyDlvd"], actEnergyRcvd=live["actEnergyRcvd"])
+    fake.envoy_payloads["/ivp/meters/readings"] = readings
+    await config_entry.runtime_data.slow.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(charged).state == STATE_UNKNOWN
+    assert hass.states.get(discharged).state == STATE_UNKNOWN
+
+    del fake.envoy_payloads["/ivp/meters/readings"]
+    await config_entry.runtime_data.slow.async_refresh()
+    await hass.async_block_till_done()
+    assert float(hass.states.get(charged).state) == full
 
 
 async def test_encharge_power_sensors(
