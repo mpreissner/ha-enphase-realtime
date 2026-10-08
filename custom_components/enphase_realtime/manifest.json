@@ -1,6 +1,9 @@
 {
   "domain": "enphase_realtime",
   "name": "Enphase Realtime",
+  "after_dependencies": [
+    "recorder"
+  ],
   "codeowners": [
     "@mpreissner"
   ],
