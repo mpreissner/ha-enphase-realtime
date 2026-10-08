@@ -174,15 +174,13 @@ class Meter:
 class LifetimeEnergy:
     """Lifetime counters in Wh. `None` means the site has no enabled meter for it.
 
-    Storage keeps the Envoy's names: which of delivered and received is "charged" is spike S5.
+    The storage CT's counters aren't here: its total needs `parse_ct_meters`' firmware guard.
     """
 
     production: float | None
     grid_import: float | None
     grid_export: float | None
     consumption: float | None
-    storage_delivered: float | None
-    storage_received: float | None
 
     @classmethod
     def from_payloads(cls, meters: Sequence[Meter], readings: Any, reports: Any) -> LifetimeEnergy:
@@ -208,14 +206,11 @@ class LifetimeEnergy:
 
         production = by_type.get("production")
         net = by_type.get("net-consumption")
-        storage = by_type.get("storage")
         return cls(
             production=production[0] if production else None,
             grid_import=net[0] if net else None,
             grid_export=net[1] if net else None,
             consumption=reported.get("total-consumption") if net else None,
-            storage_delivered=storage[0] if storage else None,
-            storage_received=storage[1] if storage else None,
         )
 
 

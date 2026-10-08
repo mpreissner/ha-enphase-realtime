@@ -1,6 +1,9 @@
 {
   "domain": "enphase_realtime",
   "name": "Enphase Realtime",
+  "after_dependencies": [
+    "recorder"
+  ],
   "codeowners": [
     "@mpreissner"
   ],
@@ -11,5 +14,5 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/mpreissner/ha-enphase-realtime/issues",
   "requirements": [],
-  "version": "1.0.3"
+  "version": "1.0.4"
 }

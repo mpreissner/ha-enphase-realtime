@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
+from . import statistics_repair
 from .const import (
     CONF_CLOUD_INTERVAL,
     CONF_ENABLE_STREAM,
@@ -179,6 +180,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EnphaseConfigEntry) -> b
     )
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    statistics_repair.async_start(hass, entry)
     return True
 
 

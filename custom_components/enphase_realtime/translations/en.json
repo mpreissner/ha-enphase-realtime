@@ -96,6 +96,17 @@
     "maintenance_charge_stuck": {
       "title": "Battery maintenance: the battery isn't charging",
       "description": "Battery maintenance turned charge from grid on, but the battery (at {soc}%) hasn't charged for {minutes} minutes, and turning charge from grid off and on again didn't help. The Envoy's battery scheduler is probably stuck; its last mode was \"{mode}\". Changing the battery profile in the Enphase app, then changing it back to Full Backup, usually frees it. Battery maintenance won't retry until the battery charges again or you turn Battery maintenance off and on."
+    },
+    "battery_statistics": {
+      "title": "Battery energy statistics are inflated",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Correct the battery energy statistics",
+            "description": "Versions 1.0.1 to 1.0.3 passed on a firmware fault: now and then the Envoy reported the battery's lifetime energy at half its value for a minute. Home Assistant took every drop for a meter reset and counted the battery's whole lifetime again, so the Energy dashboard shows far more battery energy than there was.\n\nThis version no longer passes the fault on. The statistics recorded so far hold {charged} kWh of charging and {discharged} kWh of discharging that never happened.\n\nSubmit to remove that energy from the long-term statistics of the two lifetime battery energy sensors. Nothing else is changed. This can't be undone, so make a backup first if you want a way back."
+          }
+        }
+      }
     }
   },
   "exceptions": {
