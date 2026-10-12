@@ -34,6 +34,7 @@ from envoy_client.models import (
     metered_phases,
     parse_ct_meters,
     parse_dry_contact_states,
+    with_held_storage_energy,
 )
 
 from tests.helpers import load_json, load_text
@@ -550,6 +551,39 @@ def test_storage_ct_with_two_real_legs_is_left_alone() -> None:
     assert storage.total is not None
     assert storage.total.energy_delivered == 626
     assert storage.phases["ph-a"].energy_delivered == 300
+
+
+def test_storage_ct_counters_that_read_nothing_keep_the_last_value() -> None:
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    good = parse_ct_meters(meters, load_json("ivp_meters_readings.json"), "D8.3.6086")["storage"]
+    assert with_held_storage_energy(good, None) == good
+
+    # The total and both legs at zero, which the per-poll guard can't tell from a new meter.
+    zero = {"actEnergyDlvd": 0.0, "actEnergyRcvd": 0.0}
+    readings = _storage_readings(total=zero, first=zero, second=zero)
+    nothing = parse_ct_meters(meters, readings, "D8.3.6086")["storage"]
+    assert nothing.total is not None and nothing.total.energy_delivered == 0
+    assert with_held_storage_energy(nothing, good) == good
+
+    # One counter of one leg dropped: unknown from the guard, the last value once held.
+    readings = _storage_readings(total={"actEnergyDlvd": 313.191}, second={"actEnergyDlvd": 0.0})
+    dropped = parse_ct_meters(meters, readings, "D8.3.6086")["storage"]
+    assert with_held_storage_energy(dropped, good) == good
+
+    # A counter that moved on is the Envoy's.
+    more = {"actEnergyDlvd": 400.0}
+    readings = _storage_readings(total={"actEnergyDlvd": 800.0}, first=more, second=more)
+    grown = parse_ct_meters(meters, readings, "D8.3.6086")["storage"]
+    assert with_held_storage_energy(grown, good).total.energy_delivered == 800
+
+
+def test_storage_ct_blanked_whole_is_not_filled_in() -> None:
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    good = parse_ct_meters(meters, load_json("ivp_meters_readings.json"), "D8.3.6086")["storage"]
+    blanked = parse_ct_meters(meters, _one_channel_storage_readings(), "D8.3.6086")["storage"]
+    held = with_held_storage_energy(blanked, good)
+    assert held.total is None
+    assert held.phases["ph-b"] is None
 
 
 def test_ct_meters_malformed() -> None:

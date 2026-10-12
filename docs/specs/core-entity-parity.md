@@ -163,7 +163,11 @@ The values must agree with core's, so the parsers follow pyenphase's rules where
   charged held). Each counter is therefore checked by itself: equal legs are summed whatever
   the total says; with one leg at zero the counter is unknown for the total and that leg; legs
   that differ are two real CTs and stay as reported. A leg with neither counter is blanked
-  whole, with the total, as pyenphase does. The lifetime battery energy sensors read only from
+  whole, with the total, as pyenphase does. Across polls, a counter that reads zero or unknown
+  after it had a value keeps the last value (total and legs, any firmware): the Envoy could
+  as well zero the one leg it measures, which no single poll can tell from a new meter. A
+  replaced meter shows once it has counted its first Wh; the first poll after a restart has
+  nothing to fall back on. The lifetime battery energy sensors read only from
   this guarded path: a halved counter looks like a meter reset to the recorder, which then
   counts the whole lifetime again.
 - **Total consumption repeating net consumption** (firmware 8.3.5433 and later): when

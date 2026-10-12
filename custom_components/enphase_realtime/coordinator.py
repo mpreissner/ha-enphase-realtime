@@ -62,6 +62,7 @@ from .envoy_client.models import (
     StreamFrame,
     detect_phase_layout,
     parse_ct_meters,
+    with_held_storage_energy,
 )
 from .envoy_client.stream import run_stream
 
@@ -285,6 +286,8 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
         # with when it was read.
         self._report: tuple[Any, float] | None = None
         self._report_task: asyncio.Task[None] | None = None
+        # The storage CT as last published, for the lifetime counters a poll loses.
+        self._storage: CtMeter | None = None
 
     async def refresh_dry_contacts(self) -> None:
         """Re-read just the dry contacts, for a control waiting on a write. Raises the client's
@@ -440,6 +443,9 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
         self._check_layout(meters)
         self._forget_reported(contacts)
         self._log_contact_changes(states)
+        ct_meters = _parsed(lambda: parse_ct_meters(meters, readings, firmware)) or {}
+        if (storage := ct_meters.get("storage")) is not None:
+            self._storage = ct_meters["storage"] = with_held_storage_energy(storage, self._storage)
         return SlowData(
             meters,
             energy,
@@ -449,7 +455,7 @@ class SlowCoordinator(DataUpdateCoordinator[SlowData]):
             inverters,
             export_limit,
             pcs,
-            ct_meters=_parsed(lambda: parse_ct_meters(meters, readings, firmware)) or {},
+            ct_meters=ct_meters,
             production=self._production(meters),
             battery_power=battery_power,
             inverter_details=inverter_details,

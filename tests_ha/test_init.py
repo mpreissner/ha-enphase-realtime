@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import timedelta
+from typing import Any
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
@@ -371,25 +373,44 @@ async def test_halved_storage_ct_total_is_not_reported(
     assert float(hass.states.get(charged).state) == full
 
 
-async def test_storage_ct_halving_one_counter_only(
+async def test_storage_ct_losing_a_lifetime_counter_keeps_the_last_value(
     hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
 ) -> None:
     """Seen live, 2026-10-10: discharged halved for a poll and charged didn't, which the
     recorder counted as a reset of discharged alone."""
     await _setup(hass, config_entry)
-    readings = load_json("ivp_meters_readings.json")
-    storage = next(r for r in readings if r["eid"] == 704643840)
     charged = f"sensor.envoy_{SERIAL}_lifetime_battery_energy_charged"
     discharged = f"sensor.envoy_{SERIAL}_lifetime_battery_energy_discharged"
-    full = hass.states.get(charged).state
+    full = hass.states.get(charged).state, hass.states.get(discharged).state
+    assert float(full[1]) > 0
 
-    storage["channels"][0]["actEnergyDlvd"] = 0.0
-    storage["actEnergyDlvd"] = storage["channels"][1]["actEnergyDlvd"]
-    fake.envoy_payloads["/ivp/meters/readings"] = readings
-    await config_entry.runtime_data.slow.async_refresh()
-    await hass.async_block_till_done()
-    assert hass.states.get(discharged).state == STATE_UNKNOWN
-    assert hass.states.get(charged).state == full
+    async def poll(change: Callable[[dict[str, Any]], None]) -> tuple[str, str]:
+        readings = load_json("ivp_meters_readings.json")
+        change(next(r for r in readings if r["eid"] == 704643840))
+        fake.envoy_payloads["/ivp/meters/readings"] = readings
+        await config_entry.runtime_data.slow.async_refresh()
+        await hass.async_block_till_done()
+        return hass.states.get(charged).state, hass.states.get(discharged).state
+
+    def one_leg_dropped(storage: dict[str, Any]) -> None:
+        storage["channels"][0]["actEnergyDlvd"] = 0.0
+        storage["actEnergyDlvd"] = storage["channels"][1]["actEnergyDlvd"]
+
+    def all_zero(storage: dict[str, Any]) -> None:
+        for part in (storage, *storage["channels"]):
+            part.update(actEnergyDlvd=0.0, actEnergyRcvd=0.0)
+
+    def counted_on(storage: dict[str, Any]) -> None:
+        for part, share in ((storage, 2), *((channel, 1) for channel in storage["channels"])):
+            part["actEnergyDlvd"] += 1000.0 * share
+
+    assert await poll(one_leg_dropped) == full
+    assert await poll(all_zero) == full
+    # Two faulty polls in a row still have the last good one to fall back on.
+    assert await poll(all_zero) == full
+    after = await poll(counted_on)
+    assert after[0] == full[0]
+    assert float(after[1]) > float(full[1])
 
 
 async def test_encharge_power_sensors(

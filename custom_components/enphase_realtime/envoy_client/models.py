@@ -347,6 +347,30 @@ def _with_guarded_storage_energy(storage: CtMeter) -> CtMeter:
     return CtMeter(total=total, phases={**storage.phases, "ph-a": first, "ph-b": second})
 
 
+def with_held_storage_energy(storage: CtMeter, last: CtMeter | None) -> CtMeter:
+    """Fill the storage CT's lifetime counters that read zero or unknown from the poll before.
+
+    A lifetime counter that had a value doesn't go back to nothing, and to the recorder a zero
+    is a meter reset. A replaced meter shows once it has counted its first Wh.
+    """
+    if last is None:
+        return storage
+
+    def held(reading: CtReading | None, before: CtReading | None) -> CtReading | None:
+        if reading is None or before is None:
+            return reading
+        return replace(
+            reading,
+            energy_delivered=reading.energy_delivered or before.energy_delivered,
+            energy_received=reading.energy_received or before.energy_received,
+        )
+
+    return CtMeter(
+        total=held(storage.total, last.total),
+        phases={ph: held(reading, last.phases.get(ph)) for ph, reading in storage.phases.items()},
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class EnergyTotals:
     """One `/production.json` section, or one phase of it: W and Wh."""
