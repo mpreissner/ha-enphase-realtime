@@ -156,11 +156,16 @@ The values must agree with core's, so the parsers follow pyenphase's rules where
 
 - **Readings are matched to CTs by `eid`**, and only for CTs `/ivp/meters` lists as enabled.
 - **Per-phase entities exist only with more than one phase.** A single-phase site gets totals.
-- **One-channel storage CT** (firmware 8.3.6000 and later, split phase): when one leg of the
-  storage CT reads zero energy and the other carries the whole total, the total and the dead
-  leg are reported as unknown. The Envoy does this for a poll at a time, dozens of times a day, so
-  the lifetime battery energy sensors read only from this guarded path: a halved counter looks
-  like a meter reset to the recorder, which then counts the whole lifetime again.
+- **Split-phase storage CT** (firmware 8.3.6000 and later): the Envoy measures one leg,
+  reports it on both and doubles it for the total; the two legs are identical to the last digit
+  in every healthy reading. For a poll at a time, once or twice a day or more, it skips part of
+  that, and separately for energy delivered and received (2026-10-10: discharged halved while
+  charged held). Each counter is therefore checked by itself: equal legs are summed whatever
+  the total says; with one leg at zero the counter is unknown for the total and that leg; legs
+  that differ are two real CTs and stay as reported. A leg with neither counter is blanked
+  whole, with the total, as pyenphase does. The lifetime battery energy sensors read only from
+  this guarded path: a halved counter looks like a meter reset to the recorder, which then
+  counts the whole lifetime again.
 - **Total consumption repeating net consumption** (firmware 8.3.5433 and later): when
   `production.json`'s total-consumption section has the same power and lifetime energy as
   net-consumption, production is added back. With no usable production figure, total

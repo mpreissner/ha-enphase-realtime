@@ -470,7 +470,7 @@ def test_ct_meters_reference() -> None:
     assert first.energy_delivered == 512411
     assert first.voltage == pytest.approx(120, abs=10)
 
-    # Both storage legs carry energy, so the one-channel guard leaves them alone.
+    # Both storage legs carry the same energy, so the total is their sum, as reported.
     storage = cts["storage"]
     assert storage.total is not None
     assert (storage.total.energy_delivered, storage.total.energy_received) == (626, 13560)
@@ -506,6 +506,50 @@ def test_one_channel_storage_guard_needs_the_firmware_and_split_phase() -> None:
         assert parse_ct_meters(meters, readings, firmware)["storage"].total is not None
     three_phase = _synthetic_meters(phaseMode="three", phaseCount=3)
     assert parse_ct_meters(three_phase, readings, "D8.3.6086")["storage"].total is not None
+
+
+def _storage_readings(**changes: dict[str, float]) -> Any:
+    """SYNTHETIC: the reference readings with the storage CT's `total`, `first` or `second`
+    leg changed."""
+    readings = load_json("ivp_meters_readings.json")
+    storage = next(r for r in readings if r["eid"] == 704643840)
+    parts = {"total": storage, "first": storage["channels"][0], "second": storage["channels"][1]}
+    for part, values in changes.items():
+        parts[part].update(values)
+    return readings
+
+
+def test_storage_ct_dropping_one_counter_of_a_leg() -> None:
+    """Seen live on 8.3.6xxx, 2026-10-10: discharged halved for a poll while charged held."""
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    readings = _storage_readings(total={"actEnergyDlvd": 313.191}, second={"actEnergyDlvd": 0.0})
+    storage = parse_ct_meters(meters, readings, "D8.3.6086")["storage"]
+    assert storage.total is not None
+    assert (storage.total.energy_delivered, storage.total.energy_received) == (None, 13560)
+    first, second = storage.phases["ph-a"], storage.phases["ph-b"]
+    assert first is not None and second is not None
+    assert (first.energy_delivered, first.energy_received) == (313, 6780)
+    assert (second.energy_delivered, second.energy_received) == (None, 6780)
+
+
+def test_storage_ct_total_that_missed_the_doubling() -> None:
+    """Equal legs are summed, whatever the total says."""
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    readings = _storage_readings(total={"actEnergyDlvd": 313.191, "actEnergyRcvd": 6780.057})
+    storage = parse_ct_meters(meters, readings, "D8.3.6086")["storage"]
+    assert storage.total is not None
+    assert (storage.total.energy_delivered, storage.total.energy_received) == (626, 13560)
+    # Without the firmware the total is the Envoy's.
+    assert parse_ct_meters(meters, readings, "D8.2.4345")["storage"].total.energy_received == 6780
+
+
+def test_storage_ct_with_two_real_legs_is_left_alone() -> None:
+    meters = Meter.parse_list(load_json("ivp_meters.json"))
+    readings = _storage_readings(first={"actEnergyDlvd": 300.0}, second={"actEnergyDlvd": 326.383})
+    storage = parse_ct_meters(meters, readings, "D8.3.6086")["storage"]
+    assert storage.total is not None
+    assert storage.total.energy_delivered == 626
+    assert storage.phases["ph-a"].energy_delivered == 300
 
 
 def test_ct_meters_malformed() -> None:

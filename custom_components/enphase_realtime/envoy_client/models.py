@@ -220,7 +220,7 @@ class LifetimeEnergy:
 
 PHASES = ("ph-a", "ph-b", "ph-c")
 
-# From this firmware a split-phase storage CT can report through one channel only.
+# From this firmware a split-phase storage CT can drop a leg or the doubling of its total.
 _STORAGE_CT_ONE_CHANNEL = (8, 3, 6000)
 # From this firmware /production.json can report net consumption as the total.
 _TOTAL_IS_NET_CONSUMPTION = (8, 3, 5433)
@@ -234,10 +234,11 @@ def metered_phases(meters: Sequence[Meter]) -> tuple[str, ...]:
 
 @dataclass(frozen=True, slots=True)
 class CtReading:
-    """One CT, or one phase of it. Energy in Wh, rounded as pyenphase does."""
+    """One CT, or one phase of it. Energy in Wh, rounded as pyenphase does; `None` where the
+    firmware's counter can't be trusted."""
 
-    energy_delivered: int
-    energy_received: int
+    energy_delivered: int | None
+    energy_received: int | None
     active_power: int
     power_factor: float
     voltage: float
@@ -298,32 +299,52 @@ def parse_ct_meters(
         and len(phases) == 2
         and next((m.phase_mode for m in reversed(list(enabled.values()))), None) == "split"
     ):
-        out["storage"] = _without_dead_storage_channel(storage)
+        out["storage"] = _with_guarded_storage_energy(storage)
     return out
 
 
-def _without_dead_storage_channel(storage: CtMeter) -> CtMeter:
-    """Blank what a one-channel storage CT gets wrong: when one leg reads zero energy and the
-    other carries the whole total, the total and the zero leg mean nothing."""
+def _with_guarded_storage_energy(storage: CtMeter) -> CtMeter:
+    """Replace the lifetime counters a split-phase storage CT gets wrong.
+
+    The Envoy measures one leg, reports it on both and doubles it for the total. For a poll at a
+    time it skips part of that, per counter: the total comes back halved, or a leg reads zero.
+    Equal legs are summed whatever the total says. With one leg at zero nothing says which of
+    the leg and the total is whole, so that counter is unknown. Legs that differ are two real
+    CTs and stay as reported.
+    """
     first, second = storage.phases.get("ph-a"), storage.phases.get("ph-b")
     total = storage.total
     if first is None or second is None or total is None:
         return storage
+    guarded: dict[str, tuple[int | None, int | None, int | None]] = {}
+    for counter in ("energy_delivered", "energy_received"):
+        a, b = getattr(first, counter), getattr(second, counter)
+        if a == b:
+            guarded[counter] = (a + b, a, b)
+        elif a == 0 or b == 0:
+            guarded[counter] = (None, a or None, b or None)
+        else:
+            guarded[counter] = (getattr(total, counter), a, b)
+    total, first, second = (
+        replace(reading, **{counter: values[i] for counter, values in guarded.items()})
+        for i, reading in enumerate((total, first, second))
+    )
 
-    def dead(leg: CtReading, other: CtReading) -> bool:
-        return (
-            leg.energy_delivered == 0
-            and leg.energy_received == 0
-            and other.energy_delivered != 0
-            and other.energy_received != 0
-            and other.energy_delivered == total.energy_delivered
-            and other.energy_received == total.energy_received
+    def dead(leg: CtReading) -> bool:
+        return leg.energy_delivered is None and leg.energy_received is None
+
+    # A leg with no energy at all is the one-channel CT pyenphase blanks: nothing else the
+    # total or that leg reports can be trusted either.
+    if dead(first) != dead(second):
+        return CtMeter(
+            total=None,
+            phases={
+                **storage.phases,
+                "ph-a": None if dead(first) else first,
+                "ph-b": None if dead(second) else second,
+            },
         )
-
-    first_dead, second_dead = dead(first, second), dead(second, first)
-    if first_dead == second_dead:
-        return storage
-    return CtMeter(total=None, phases={**storage.phases, "ph-a" if first_dead else "ph-b": None})
+    return CtMeter(total=total, phases={**storage.phases, "ph-a": first, "ph-b": second})
 
 
 @dataclass(frozen=True, slots=True)

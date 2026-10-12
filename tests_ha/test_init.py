@@ -371,6 +371,27 @@ async def test_halved_storage_ct_total_is_not_reported(
     assert float(hass.states.get(charged).state) == full
 
 
+async def test_storage_ct_halving_one_counter_only(
+    hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
+) -> None:
+    """Seen live, 2026-10-10: discharged halved for a poll and charged didn't, which the
+    recorder counted as a reset of discharged alone."""
+    await _setup(hass, config_entry)
+    readings = load_json("ivp_meters_readings.json")
+    storage = next(r for r in readings if r["eid"] == 704643840)
+    charged = f"sensor.envoy_{SERIAL}_lifetime_battery_energy_charged"
+    discharged = f"sensor.envoy_{SERIAL}_lifetime_battery_energy_discharged"
+    full = hass.states.get(charged).state
+
+    storage["channels"][0]["actEnergyDlvd"] = 0.0
+    storage["actEnergyDlvd"] = storage["channels"][1]["actEnergyDlvd"]
+    fake.envoy_payloads["/ivp/meters/readings"] = readings
+    await config_entry.runtime_data.slow.async_refresh()
+    await hass.async_block_till_done()
+    assert hass.states.get(discharged).state == STATE_UNKNOWN
+    assert hass.states.get(charged).state == full
+
+
 async def test_encharge_power_sensors(
     hass: HomeAssistant, fake: FakeEnphase, config_entry: MockConfigEntry
 ) -> None:
