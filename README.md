@@ -163,10 +163,11 @@ with a different ID (a renamed device, or a `_2` left over), rename it to the ol
 settings. Copying history from one sensor to a different one isn't supported: the two
 measure different things, and the Energy dashboard would mix the two.
 
-**Inflated battery energy from versions 1.0.1 to 1.0.3.** On Envoy firmware 8.3 the storage CT
-now and then reports its lifetime energy at half its value for one poll. Those versions passed
-that on, Home Assistant took each drop for a meter reset, and the battery's whole lifetime was
-counted again every time. Later versions don't pass it on, and they check the statistics already
+**Inflated battery energy from versions 1.0.1 to 1.0.4.** On Envoy firmware 8.3 the storage CT
+now and then reports its lifetime energy at half its value for one poll. Versions up to 1.0.3
+passed that on, and 1.0.4 still did when only charged or only discharged was halved. Home
+Assistant took each drop for a meter reset, and the battery's whole lifetime was counted again
+every time. Later versions don't pass it on, and from 1.0.4 they check the statistics already
 recorded: if the fault is in them, **Settings → System → Repairs** shows *Battery energy
 statistics are inflated*. Its fix shows how much energy it will remove and, when you submit,
 corrects the long-term statistics of the two lifetime battery energy sensors. Nothing is changed
