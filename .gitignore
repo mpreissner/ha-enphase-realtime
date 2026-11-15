@@ -29,3 +29,11 @@ diagnostics/
 config_entry-*.json
 
 .DS_Store
+
+# MemPalace per-project files (issue #185)
+mempalace.yaml
+entities.json
+.mempalace/
+
+# Local-only tools, not yet part of a release
+tools/merge_core_statistics.py
